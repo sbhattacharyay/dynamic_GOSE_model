@@ -1,0 +1,2 @@
+# CENTER-TBI dataset
+Individual participant data, including data dictionary, the study protocol, and analysis scripts are available online, conditional to approved study proposal, with no end date. Interested investigators must provide a methodologically sound study proposal to the management committee. Proposals can be submitted online at https://www.center-tbi.eu/data. Signed confirmation of a data access agreement is required, and all access must comply with regulatory restrictions imposed on the original study.

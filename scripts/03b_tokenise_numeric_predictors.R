@@ -51,8 +51,11 @@ cv.folds <- read.csv('../cross_validation_splits.csv')
 # Read user-defined argument from command line
 array_task_id <- as.integer(commandArgs(trailingOnly=TRUE))
 
-# Select current repeat and fold information from given argument
-tokenisation_combos <- read.csv('tokenisation_combos.csv')
+# Based on array task ID, get current repeat and fold
+tokenisation_combos <- cv.folds %>%
+  select(repeat.,fold) %>%
+  distinct() %>%
+  rename(REPEAT = repeat., FOLD = fold)
 curr.repeat <- tokenisation_combos$REPEAT[array_task_id]
 curr.fold <- tokenisation_combos$FOLD[array_task_id]
 

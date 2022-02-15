@@ -1,4 +1,4 @@
-#### Master Script 4: Train dictionaries and convert tokens to embedding layer indices ####
+#### Master Script 3c: Train dictionaries and convert tokens to embedding layer indices ####
 #
 # Shubhayu Bhattacharyay
 # University of Cambridge
@@ -53,8 +53,11 @@ cv_splits = pd.read_csv('../cross_validation_splits.csv')
 # Set the number of cores for parallel processing
 NUM_CORES = multiprocessing.cpu_count()
 
-# Load remaining indexing combinations
-indexing_combos = pd.read_pickle('indexing_combos.pkl')
+# Create combinations of repeats, folds, and admission/discharge
+uniq_partitions = cv_splits[['repeat','fold']].drop_duplicates(ignore_index=True)
+uniq_partitions['key'] = 1
+adm_disch_df = pd.DataFrame({'adm_or_disch':['adm','disch'],'key':1})
+indexing_combos = uniq_partitions.merge(adm_disch_df,how='outer').reset_index(drop=True)
 
 def main(array_task_id):
     

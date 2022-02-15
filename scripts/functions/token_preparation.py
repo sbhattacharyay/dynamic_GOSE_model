@@ -123,3 +123,34 @@ def convert_tokens(tokens_df,vocabulary,progress_bar=True,progress_bar_desc=''):
 def del_files(x,y):
     for f in x:
         os.remove(f)
+        
+def get_token_info(index_df,vocab_df,missing = True, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_token_characteristics = []
+    
+    if progress_bar:
+        iterator = tqdm(range(index_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(index_df.shape[0])
+    
+    for curr_row in iterator:
+        
+        curr_IndexList = index_df.VocabIndex[curr_row]
+
+        filt_vocab = vocab_df[vocab_df.VocabIndex.isin(curr_IndexList)].reset_index(drop=True)
+        
+        if not missing:
+            filt_vocab = filt_vocab[~filt_vocab.Missing].reset_index(drop=True)
+            
+        compiled_token_characteristics.append(pd.DataFrame({'GUPI':index_df.GUPI[curr_row],
+                                                            'TimeStampStart':index_df.TimeStampStart[curr_row],
+                                                            'TimeStampEnd':index_df.TimeStampEnd[curr_row],
+                                                            'WindowIdx':index_df.WindowIdx[curr_row],
+                                                            'WindowTotal':index_df.WindowTotal[curr_row],
+                                                            'TotalTokens':filt_vocab.shape[0],
+                                                            'Baseline':filt_vocab.Baseline.sum(),
+                                                            'Numeric':filt_vocab.Numeric.sum(),
+                                                            'ICUIntervention':filt_vocab.ICUIntervention.sum(),
+                                                            'ClinicianInput':filt_vocab.ClinicianInput.sum()},index=[0]))
+    
+    return pd.concat(compiled_token_characteristics,ignore_index=True)

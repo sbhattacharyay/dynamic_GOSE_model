@@ -58,6 +58,7 @@ uniq_partitions = cv_splits[['repeat','fold']].drop_duplicates(ignore_index=True
 uniq_partitions['key'] = 1
 adm_disch_df = pd.DataFrame({'adm_or_disch':['adm','disch'],'key':1})
 indexing_combos = uniq_partitions.merge(adm_disch_df,how='outer').reset_index(drop=True)
+# indexing_combos = pd.read_pickle('indexing_combos.pkl')
 
 def main(array_task_id):
     

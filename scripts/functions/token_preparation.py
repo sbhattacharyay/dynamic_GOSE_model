@@ -98,11 +98,28 @@ def get_ts_interval_tokens(cat_df,curr_GUPI,curr_last_timestamp):
     
     return np.unique(' '.join(filt_cat_df['TokenStub']).split())
 
-def load_tokens(GUPIs,token_dir,progress_bar=True,progress_bar_desc=''):
+def load_tokens(GUPIs,adm_or_disch,token_dir,progress_bar=True,progress_bar_desc=''):
     
     if progress_bar:
         iterator = tqdm(GUPIs,desc=progress_bar_desc)
     else:
         iterator = GUPIs
                 
-    return pd.concat([pd.read_csv(os.path.join(token_dir,g+'.csv')) for g in iterator],ignore_index=True)
+    return pd.concat([pd.read_csv(os.path.join(token_dir,'from_'+adm_or_disch+'_'+g+'.csv')) for g in iterator],ignore_index=True)
+
+def convert_tokens(tokens_df,vocabulary,progress_bar=True,progress_bar_desc=''):
+    
+    if progress_bar:
+        iterator = tqdm(range(tokens_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(tokens_df.shape[0])
+        
+    tokens_df['VocabIndex'] = [vocabulary.lookup_indices(tokens_df.Token[curr_row].split(' ')) for curr_row in iterator]
+    
+    tokens_df = tokens_df.drop(columns='Token')
+    
+    return tokens_df
+
+def del_files(x,y):
+    for f in x:
+        os.remove(f)

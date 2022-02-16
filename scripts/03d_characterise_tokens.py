@@ -6,6 +6,11 @@
 #
 ### Contents:
 # I. Initialisation
+# II. Create and classify token dictionary for chosen partition
+# III. Characterise tokens of chosen partition
+
+### I. Initialisation
+# Import necessary libraries
 import os
 import re
 import sys
@@ -51,6 +56,7 @@ REPEAT = 1
 FOLD = 1
 fold_dir = os.path.join(token_dir,'repeat'+str(REPEAT).zfill(2),'fold'+str(FOLD).zfill(1))
 
+### II. Create and classify token dictionary for chosen partition
 # Load token dictionaries of chosen partition
 curr_adm_vocab = cp.load(open(os.path.join(fold_dir,'from_adm_token_dictionary.pkl'),"rb"))
 curr_disch_vocab = cp.load(open(os.path.join(fold_dir,'from_disch_token_dictionary.pkl'),"rb"))
@@ -103,6 +109,7 @@ curr_disch_vocab_df.ICUIntervention[curr_disch_vocab_df.BaseToken=='TimeOfDay'] 
 curr_disch_vocab_df.ClinicianInput[curr_disch_vocab_df.BaseToken=='TimeOfDay'] = False
 curr_disch_vocab_df.Type[curr_disch_vocab_df.BaseToken=='TimeOfDay'] = 'Time of day'
 
+### III. Characterise tokens of chosen partition
 # Load token indices of chosen partition
 adm_training_indices = pd.read_pickle(os.path.join(fold_dir,'from_adm_training_indices.pkl'))
 disch_training_indices = pd.read_pickle(os.path.join(fold_dir,'from_disch_training_indices.pkl'))

@@ -163,6 +163,7 @@ def main(array_task_id):
     somers_d = pd.concat(somers_d,ignore_index=True)
     
     ### Entropy
+    curr_is_preds['Entropy'] = stats.entropy(curr_is_preds[prob_cols],axis=1,base=2)
     entropy = curr_is_preds.groupby('WindowIdx',as_index=False)['Entropy'].mean().rename(columns={'Entropy':'VALUE','WindowIdx':'WINDOW_IDX'})
     entropy['ADM_OR_DISCH'] = curr_adm_or_disch
     entropy['RESAMPLE_IDX'] = curr_rs_idx

@@ -43,8 +43,7 @@ from sklearn.utils.class_weight import compute_class_weight
 from tqdm import tqdm
 
 def collate_batch(batch):
-    (label_list, idx_list, bin_offsets, gupi_offsets, gupis) = ([], [],
-            [0], [0], [])
+    (label_list, idx_list, bin_offsets, gupi_offsets, gupis) = ([], [], [0], [0], [])
     for (seq_lists, curr_GUPI, curr_label) in batch:
         gupi_offsets.append(len(seq_lists))
         for curr_bin in seq_lists:
@@ -59,3 +58,29 @@ def collate_batch(batch):
     bin_offsets = torch.tensor(bin_offsets[:-1]).cumsum(dim=0)
     idx_list = torch.cat(idx_list)
     return (label_list, idx_list, bin_offsets, gupi_offsets, gupis)
+
+def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_predictions = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+    
+    # Load each prediction file, add 'WindowIdx' and repeat/fold information
+    for curr_row in iterator:
+        
+        curr_preds = pd.read_csv(info_df.file[curr_row])
+        curr_preds['repeat'] = info_df.repeat[curr_row]
+        curr_preds['fold'] = info_df.fold[curr_row]
+        
+        if info_df.adm_or_disch[curr_row] == 'adm':
+            curr_preds['WindowIdx'] = curr_preds.groupby('GUPI').cumcount(ascending=True)+1
+
+        elif info_df.adm_or_disch[curr_row] == 'disch':
+            curr_preds['WindowIdx'] = curr_preds.groupby('GUPI').cumcount(ascending=False)+1
+        
+        compiled_predictions.append(curr_preds)
+        
+    return pd.concat(compiled_predictions,ignore_index=True)

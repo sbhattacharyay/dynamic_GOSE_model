@@ -1,4 +1,4 @@
-#### Master Script 4: Train dynamic all-predictor-based models ####
+#### Master Script 4a: Train dynamic all-predictor-based models ####
 #
 # Shubhayu Bhattacharyay
 # University of Cambridge

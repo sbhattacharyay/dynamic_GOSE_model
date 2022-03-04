@@ -1,4 +1,4 @@
-#### Master Script 4a: Train dynamic all-predictor-based models ####
+#### Master Script 6a: Retrain dynamic all-predictor-based models to combat overfitting ####
 #
 # Shubhayu Bhattacharyay
 # University of Cambridge
@@ -7,7 +7,7 @@
 ### Contents:
 # I. Initialisation
 # II. Create grid of training combinations
-# III. Train dynamic APM model based on provided hyperparameter row index
+# III. Train APM_deep model based on provided hyperparameter row index
 
 ### I. Initialisation
 # Fundamental libraries
@@ -34,6 +34,7 @@ from argparse import ArgumentParser
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 warnings.filterwarnings(action="ignore")
 
+
 # PyTorch, PyTorch.Text, and Lightning-PyTorch methods
 import torch
 from torch import nn, optim, Tensor
@@ -56,80 +57,96 @@ from tqdm import tqdm
 
 # Custom methods
 from classes.datasets import DYN_ALL_PREDICTOR_SET
-from functions.model_building import collate_batch
+from functions.model_building import collate_batch, format_tokens
 from models.dynamic_APM import GOSE_model
 
 # Set version code
-VERSION = 'v1-0'
+VERSION = 'v2-0'
 
 # Initialise model output directory based on version code
 model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+VERSION
 os.makedirs(model_dir,exist_ok=True)
 
+# II. Create grid of training combinations
+# # Load the optimised tuning grid from v1-0
+# tuning_grid = pd.read_csv('/home/sb2406/rds/hpc-work/model_outputs/v1-0/tuning_grid.csv')
+# tuning_grid = tuning_grid[tuning_grid.OUTPUT_ACTIVATION == 'softmax']
+
+# # Change embedding layer dropout to 0.2
+# tuning_grid.EMBED_DROPOUT = .2
+
+# # Change number of maximum epochs to 20
+# tuning_grid.NUM_EPOCHS = 20
+
+# # Change batch size to 4
+# tuning_grid.BATCH_SIZE = 4
+
+# # Add hyperparameter for window size (in hours)
+# WINDOW_DUR_VECTOR = [2,8,12,24]
+# tuning_grid = tuning_grid.iloc[[0 for _ in range(len(WINDOW_DUR_VECTOR))]].reset_index(drop=True)
+# tuning_grid['WINDOW_DURATION'] = WINDOW_DUR_VECTOR
+# tuning_grid['tune_idx'] = [i+1 for i in range(len(WINDOW_DUR_VECTOR))]
+# tuning_grid['key']=1
+
 # Load cross-validation split information
 cv_splits = pd.read_csv('../cross_validation_splits.csv')
 
-# Load the optimised tuning grid
-tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
-tuning_grid = tuning_grid[tuning_grid.OUTPUT_ACTIVATION == 'softmax']
+# Isolate partitions of first repeat
+cv_splits = cv_splits[cv_splits.repeat == 1].reset_index(drop=True)
 
+# # Identify unique adm/disch-CV combinations
+# uniq_splits = cv_splits[['repeat','fold']].drop_duplicates().reset_index(drop=True)
+# uniq_splits['key'] = 1
+# uniq_adm_disch = pd.DataFrame({'adm_or_disch':['adm','disch'],'key':1})
+# cv_ad_combos = pd.merge(uniq_splits,uniq_adm_disch,how='outer',on='key')
+
+# # Combine tuning grid with unique adm/disch-CV combinations
+# tuning_grid = pd.merge(tuning_grid,cv_ad_combos,how='outer',on='key').drop(columns='key').reset_index(drop=True)
+
+# # Reorder tuning grid columns and save in model directory
+# tuning_grid = tuning_grid[['tune_idx','WINDOW_DURATION','RNN_TYPE','LATENT_DIM','EMBED_DROPOUT','HIDDEN_DIM','RNN_LAYERS','NUM_EPOCHS','ES_PATIENCE','IMBALANCE_CORRECTION','OUTPUT_ACTIVATION','LEARNING_RATE','BATCH_SIZE','repeat','fold','adm_or_disch']].reset_index(drop=True)
+# tuning_grid.to_csv(os.path.join(model_dir,'tuning_grid.csv'),index=False)
+
+# Load optimised tuning grid
+tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
+
+### III. Train dynamic APM model based on provided hyperparameter row index
 # Define the limit of windows for model training (1 WINDOW = 1/12 HOURS)
 WINDOW_LIMIT = 84
 
-### II. Create grid of training combinations
-# Identify unique adm/disch-CV combinations
-uniq_splits = cv_splits[['repeat','fold']].drop_duplicates().reset_index(drop=True)
-uniq_splits['key'] = 1
-uniq_adm_disch = pd.DataFrame({'adm_or_disch':['adm','disch'],'key':1})
-cv_ad_combos = pd.merge(uniq_splits,uniq_adm_disch,how='outer',on='key').drop(columns='key')
-
-### III. Train dynamic APM model based on provided hyperparameter row index
+# Argument-induced training functions
 def main(array_task_id):
     
     # Extract current repeat, fold, and adm/disch information
-    curr_repeat = cv_ad_combos.repeat[array_task_id]
-    curr_fold = cv_ad_combos.fold[array_task_id]
-    curr_adm_or_disch = cv_ad_combos.adm_or_disch[array_task_id]
+    curr_repeat = tuning_grid.repeat[array_task_id]
+    curr_fold = tuning_grid.fold[array_task_id]
+    curr_adm_or_disch = tuning_grid.adm_or_disch[array_task_id]
+    curr_window_dur = tuning_grid.WINDOW_DURATION[array_task_id]
+    curr_tune_idx = tuning_grid.tune_idx[array_task_id]
     
     # Create a directory for the current repeat
-    repeat_dir = os.path.join(model_dir,'repeat'+str(curr_repeat).zfill(int(np.log10(cv_splits.repeat.max()))+1))
+    repeat_dir = os.path.join(model_dir,'repeat'+str(curr_repeat).zfill(2))
     os.makedirs(repeat_dir,exist_ok=True)
     
     # Create a directory for the current fold
-    fold_dir = os.path.join(repeat_dir,'fold'+str(curr_fold).zfill(int(np.log10(cv_splits.fold.max()))+1))
+    fold_dir = os.path.join(repeat_dir,'fold'+str(curr_fold).zfill(int(np.log10(tuning_grid.fold.max()))+1))
     os.makedirs(fold_dir,exist_ok=True)
     
     # Create a directory for the current adm/disch
     adm_disch_dir = os.path.join(fold_dir,curr_adm_or_disch)
     os.makedirs(adm_disch_dir,exist_ok = True)
-       
+    
+    # Create a directory for the current tuning index
+    tune_dir = os.path.join(adm_disch_dir,'tune'+str(curr_tune_idx).zfill(4))
+    os.makedirs(tune_dir,exist_ok = True)
+    
     # Load current token-indexed training and testing sets
     training_set = pd.read_pickle('/home/sb2406/rds/hpc-work/tokens/repeat'+str(curr_repeat).zfill(2)+'/fold'+str(curr_fold)+'/from_'+curr_adm_or_disch+'_training_indices.pkl')
     testing_set = pd.read_pickle('/home/sb2406/rds/hpc-work/tokens/repeat'+str(curr_repeat).zfill(2)+'/fold'+str(curr_fold)+'/from_'+curr_adm_or_disch+'_testing_indices.pkl')
     
-    # Based on `curr_adm_or_disch` and WINDOW_LIMIT, refine dataset
-    if curr_adm_or_disch == 'adm':
-        
-        # Extract tokens up to window limit after ICU admission
-        training_set = training_set[training_set.WindowIdx <= WINDOW_LIMIT].sort_values(by=['GUPI','WindowIdx'],ignore_index=True)
-        testing_set = testing_set[testing_set.WindowIdx <= WINDOW_LIMIT].sort_values(by=['GUPI','WindowIdx'],ignore_index=True)
-
-    elif curr_adm_or_disch == 'disch':
-        
-        # Combine all tokens up to the window limit before ICU discharge
-        comb_lim_training = training_set[training_set.WindowIdx >= WINDOW_LIMIT].groupby('GUPI')['VocabIndex'].apply(list).reset_index(name='VocabIndex')
-        comb_lim_training['VocabIndex'] = comb_lim_training['VocabIndex'].apply(lambda x: list(np.unique([item for sublist in x for item in sublist])))
-        full_lim_training = training_set[training_set.WindowIdx == WINDOW_LIMIT].drop(columns='VocabIndex').merge(comb_lim_training,on='GUPI',how='left')
-        training_set = pd.concat([training_set[training_set.WindowIdx < WINDOW_LIMIT],full_lim_training],ignore_index=True).sort_values(by=['GUPI','WindowIdx'],ascending=[True,False],ignore_index=True)
-        
-        # Combine all tokens up to the window limit before ICU discharge
-        comb_lim_testing = testing_set[testing_set.WindowIdx >= WINDOW_LIMIT].groupby('GUPI')['VocabIndex'].apply(list).reset_index(name='VocabIndex')
-        comb_lim_testing['VocabIndex'] = comb_lim_testing['VocabIndex'].apply(lambda x: list(np.unique([item for sublist in x for item in sublist])))
-        full_lim_testing = testing_set[testing_set.WindowIdx == WINDOW_LIMIT].drop(columns='VocabIndex').merge(comb_lim_testing,on='GUPI',how='left')
-        testing_set = pd.concat([testing_set[testing_set.WindowIdx < WINDOW_LIMIT],full_lim_testing],ignore_index=True).sort_values(by=['GUPI','WindowIdx'],ascending=[True,False],ignore_index=True)
-        
-    else:
-        raise ValueError('curr_adm_or_disch must be "adm" or "disch"')
+    # Format tokens based on `curr_adm_or_disch`, `curr_window_dur`, and `WINDOW_LIMIT`
+    training_set = format_tokens(training_set,WINDOW_LIMIT,curr_adm_or_disch,curr_window_dur)
+    testing_set = format_tokens(testing_set,WINDOW_LIMIT,curr_adm_or_disch,curr_window_dur)
     
     # Load current token dictionary
     curr_vocab = cp.load(open('/home/sb2406/rds/hpc-work/tokens/repeat'+str(curr_repeat).zfill(2)+'/fold'+str(curr_fold)+'/from_'+curr_adm_or_disch+'_token_dictionary.pkl',"rb"))
@@ -148,16 +165,16 @@ def main(array_task_id):
         training_GUPIs, val_GUPIs = full_training_GOSE.GUPI[train_index], full_training_GOSE.GUPI[val_index]
         val_set = training_set[training_set.GUPI.isin(val_GUPIs)].reset_index(drop=True)
         training_set = training_set[training_set.GUPI.isin(training_GUPIs)].reset_index(drop=True)    
-    cp.dump(sss, open(os.path.join(adm_disch_dir,'val_set_splitter.pkl'), "wb"))
+    cp.dump(sss, open(os.path.join(tune_dir,'val_set_splitter.pkl'), "wb"))
     
     # Create PyTorch Dataset objects
-    train_Dataset = DYN_ALL_PREDICTOR_SET(training_set,tuning_grid.OUTPUT_ACTIVATION[0])
-    val_Dataset = DYN_ALL_PREDICTOR_SET(val_set,tuning_grid.OUTPUT_ACTIVATION[0])
-    test_Dataset = DYN_ALL_PREDICTOR_SET(testing_set,tuning_grid.OUTPUT_ACTIVATION[0])
+    train_Dataset = DYN_ALL_PREDICTOR_SET(training_set,tuning_grid.OUTPUT_ACTIVATION[array_task_id])
+    val_Dataset = DYN_ALL_PREDICTOR_SET(val_set,tuning_grid.OUTPUT_ACTIVATION[array_task_id])
+    test_Dataset = DYN_ALL_PREDICTOR_SET(testing_set,tuning_grid.OUTPUT_ACTIVATION[array_task_id])
     
     # Create PyTorch DataLoader objects
     curr_train_DL = DataLoader(train_Dataset,
-                               batch_size=int(tuning_grid.BATCH_SIZE[0]),
+                               batch_size=int(tuning_grid.BATCH_SIZE[array_task_id]),
                                shuffle=True,
                                collate_fn=collate_batch)
     
@@ -173,42 +190,41 @@ def main(array_task_id):
     
     # Initialize current model class based on hyperparameter selections
     model = GOSE_model(len(curr_vocab),
-                       tuning_grid.LATENT_DIM[0],
-                       tuning_grid.EMBED_DROPOUT[0],
-                       tuning_grid.RNN_TYPE[0],
-                       tuning_grid.HIDDEN_DIM[0],
-                       tuning_grid.RNN_LAYERS[0],
-                       tuning_grid.OUTPUT_ACTIVATION[0],
-                       tuning_grid.LEARNING_RATE[0],
+                       tuning_grid.LATENT_DIM[array_task_id],
+                       tuning_grid.EMBED_DROPOUT[array_task_id],
+                       tuning_grid.RNN_TYPE[array_task_id],
+                       tuning_grid.HIDDEN_DIM[array_task_id],
+                       tuning_grid.RNN_LAYERS[array_task_id],
+                       tuning_grid.OUTPUT_ACTIVATION[array_task_id],
+                       tuning_grid.LEARNING_RATE[array_task_id],
                        True,
                        train_Dataset.y)
     
     early_stop_callback = EarlyStopping(
         monitor='val_ORC',
-        patience=tuning_grid.ES_PATIENCE[0],
+        patience=tuning_grid.ES_PATIENCE[array_task_id],
         mode='max'
     )
     
     checkpoint_callback = ModelCheckpoint(
         monitor='val_ORC',
-        dirpath=adm_disch_dir,
+        dirpath=tune_dir,
         filename='{epoch:02d}-{val_ORC:.2f}',
         save_top_k=1,
         mode='max'
     )
-    
-    csv_logger = pl.loggers.CSVLogger(save_dir=fold_dir,name=curr_adm_or_disch)
+      
+    csv_logger = pl.loggers.CSVLogger(save_dir=adm_disch_dir,name='tune'+str(curr_tune_idx).zfill(4))
 
-    trainer = pl.Trainer(gpus = -1,
+    trainer = pl.Trainer(gpus = 1,
                          accelerator='gpu',
-                         strategy = 'ddp',
                          logger = csv_logger,
-                         max_epochs = 20,
+                         max_epochs = tuning_grid.NUM_EPOCHS[array_task_id],
                          enable_progress_bar = True,
                          enable_model_summary = True,
                          callbacks=[early_stop_callback,checkpoint_callback])
     
-    trainer.fit(model,curr_train_DL,curr_val_DL)
+    trainer.fit(model=model,train_dataloaders=curr_train_DL,val_dataloaders=curr_val_DL)
     
     best_model = GOSE_model.load_from_checkpoint(checkpoint_callback.best_model_path)
     best_model.eval()
@@ -238,7 +254,7 @@ def main(array_task_id):
         curr_val_preds.insert(loc=0, column='GUPI', value=curr_gupis)        
         curr_val_preds['adm_or_disch'] = curr_adm_or_disch
 
-        curr_val_preds.to_csv(os.path.join(adm_disch_dir,'val_predictions.csv'),index=False)
+        curr_val_preds.to_csv(os.path.join(tune_dir,'val_predictions.csv'),index=False)
         
     best_model.eval()
         
@@ -267,8 +283,8 @@ def main(array_task_id):
         curr_test_preds.insert(loc=0, column='GUPI', value=curr_gupis)        
         curr_test_preds['adm_or_disch'] = curr_adm_or_disch
 
-        curr_test_preds.to_csv(os.path.join(adm_disch_dir,'test_predictions.csv'),index=False)
-    
+        curr_test_preds.to_csv(os.path.join(tune_dir,'test_predictions.csv'),index=False)
+        
 if __name__ == '__main__':
     
     array_task_id = int(sys.argv[1])    

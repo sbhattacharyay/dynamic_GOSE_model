@@ -84,3 +84,137 @@ def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
         compiled_predictions.append(curr_preds)
         
     return pd.concat(compiled_predictions,ignore_index=True)
+
+def format_tokens(token_df,window_lim,curr_adm_or_disch,window_dur):
+
+    # Based on `curr_adm_or_disch` and window_lim, refine dataset
+    if curr_adm_or_disch == 'adm':
+        
+        # Extract tokens up to window limit after ICU admission
+        token_df = token_df[token_df.WindowIdx <= window_lim].sort_values(by=['GUPI','WindowIdx'],ignore_index=True)
+        
+        # Combine windows if `window_dur` does not equal 2
+        if window_dur != 2:
+            
+            # Identify how many windows need to be combined per `window_dur` choice
+            comb_span = int(window_dur/2)
+            
+            # Sequence of viable window indices
+            window_indices_list = list(range(1,window_lim+1))
+
+            # Split sequence of window indices
+            windows_to_combine = [(window_indices_list[i:i+comb_span]) for i in range(0, len(window_indices_list), comb_span)]
+            
+            # Create empty list to store combined token indices
+            combined_token_dfs = []
+            
+            # Iterate through window splits and combine token indices
+            for group_idx, curr_group in enumerate(windows_to_combine):
+                
+                # Extract tokens in current group and combine by GUPI
+                curr_token_group = token_df[token_df.WindowIdx.isin(curr_group)].reset_index(drop=True).groupby('GUPI')['VocabIndex'].apply(list).reset_index(name='VocabIndex')
+                
+                # Ensure tokens are unique within each combined window
+                curr_token_group['VocabIndex'] = curr_token_group['VocabIndex'].apply(lambda x: list(np.unique([item for sublist in x for item in sublist])))
+                
+                # Extract timestamps for current token group
+                curr_group_ts = token_df[token_df.WindowIdx.isin(curr_group)].drop(columns=['VocabIndex'])
+                curr_group_ts = curr_group_ts.groupby(['GUPI','WindowTotal'],as_index=False).aggregate({'TimeStampStart':'min', 'TimeStampEnd':'max'}).reset_index(drop=True)
+                
+                # Change `WindowIdx` for new counting system
+                curr_group_ts['WindowIdx'] = group_idx+1
+                
+                # Merge timestamps with token indices
+                curr_token_group = pd.merge(curr_group_ts,curr_token_group,on='GUPI',how='left')
+                
+                # Append current token group to running list
+                combined_token_dfs.append(curr_token_group)
+                
+            # Concatenate compiled token_dfs to form new token_df
+            token_df = pd.concat(combined_token_dfs,ignore_index=True).sort_values(by=['GUPI','WindowIdx'],ignore_index=True)
+            
+            # Change `WindowTotal` to reflect combinations
+            token_df.WindowTotal = np.ceil(token_df.WindowTotal/comb_span).astype(int)
+            
+    elif curr_adm_or_disch == 'disch':
+        
+        # Combine all tokens up to the window limit before ICU discharge
+        comb_lim_tokens = token_df[token_df.WindowIdx >= window_lim].groupby('GUPI')['VocabIndex'].apply(list).reset_index(name='VocabIndex')
+        comb_lim_tokens['VocabIndex'] = comb_lim_tokens['VocabIndex'].apply(lambda x: list(np.unique([item for sublist in x for item in sublist])))
+        full_lim_training = token_df[token_df.WindowIdx == window_lim].drop(columns='VocabIndex').merge(comb_lim_tokens,on='GUPI',how='left')
+        token_df = pd.concat([token_df[token_df.WindowIdx < window_lim],full_lim_training],ignore_index=True).sort_values(by=['GUPI','WindowIdx'],ascending=[True,False],ignore_index=True)
+              
+        # Combine windows if `window_dur` does not equal 2
+        if window_dur != 2:
+            
+            # Identify how many windows need to be combined per `window_dur` choice
+            comb_span = int(window_dur/2)
+            
+            # Sequence of viable window indices
+            window_indices_list = list(range(1,window_lim+1))
+
+            # Split sequence of window indices
+            windows_to_combine = [(window_indices_list[i:i+comb_span]) for i in range(0, len(window_indices_list), comb_span)]
+            
+            # Create empty list to store combined token indices
+            combined_token_dfs = []
+            
+            # Iterate through window splits and combine token indices
+            for group_idx, curr_group in enumerate(windows_to_combine):
+                
+                # Extract tokens in current group and combine by GUPI
+                curr_token_group = token_df[token_df.WindowIdx.isin(curr_group)].reset_index(drop=True).groupby('GUPI')['VocabIndex'].apply(list).reset_index(name='VocabIndex')
+                
+                # Ensure tokens are unique within each combined window
+                curr_token_group['VocabIndex'] = curr_token_group['VocabIndex'].apply(lambda x: list(np.unique([item for sublist in x for item in sublist])))
+                
+                # Extract timestamps for current token group
+                curr_group_ts = token_df[token_df.WindowIdx.isin(curr_group)].drop(columns=['VocabIndex'])
+                curr_group_ts = curr_group_ts.groupby(['GUPI','WindowTotal'],as_index=False).aggregate({'TimeStampStart':'min', 'TimeStampEnd':'max'}).reset_index(drop=True)
+                
+                # Change `WindowIdx` for new counting system
+                curr_group_ts['WindowIdx'] = group_idx+1
+                
+                # Merge timestamps with token indices
+                curr_token_group = pd.merge(curr_group_ts,curr_token_group,on='GUPI',how='left')
+                
+                # Append current token group to running list
+                combined_token_dfs.append(curr_token_group)
+                
+            # Concatenate compiled token_dfs to form new token_df
+            token_df = pd.concat(combined_token_dfs,ignore_index=True).sort_values(by=['GUPI','WindowIdx'],ascending=[True,False],ignore_index=True)
+            
+            # Change `WindowTotal` to reflect combinations
+            token_df.WindowTotal = np.ceil(token_df.WindowTotal/comb_span).astype(int)
+        
+    else:
+        raise ValueError('curr_adm_or_disch must be "adm" or "disch"')
+        
+    return token_df
+
+def load_tune_predictions(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_predictions = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+    
+    # Load each prediction file, add 'WindowIdx' and repeat/fold information
+    for curr_row in iterator:
+        
+        curr_preds = pd.read_csv(info_df.file[curr_row])
+        curr_preds['repeat'] = info_df.repeat[curr_row]
+        curr_preds['fold'] = info_df.fold[curr_row]
+        curr_preds['tune_idx'] = info_df.tune_idx[curr_row]
+        
+        if info_df.adm_or_disch[curr_row] == 'adm':
+            curr_preds['WindowIdx'] = curr_preds.groupby('GUPI').cumcount(ascending=True)+1
+
+        elif info_df.adm_or_disch[curr_row] == 'disch':
+            curr_preds['WindowIdx'] = curr_preds.groupby('GUPI').cumcount(ascending=False)+1
+        
+        compiled_predictions.append(curr_preds)
+        
+    return pd.concat(compiled_predictions,ignore_index=True)

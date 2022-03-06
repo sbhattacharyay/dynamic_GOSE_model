@@ -1,4 +1,4 @@
-#### Master Script 7a: Assess model performance ####
+#### Master Script 8a: Assess model performance ####
 #
 # Shubhayu Bhattacharyay
 # University of Cambridge
@@ -50,8 +50,13 @@ from statsmodels.tools.tools import add_constant
 # TQDM for progress tracking
 from tqdm import tqdm
 
+# Identify patients with early ICU discharge
+ICU_adm_disch_timestamps = pd.read_csv('../timestamps/ICU_adm_disch_timestamps.csv')
+day2_discharges = ICU_adm_disch_timestamps[ICU_adm_disch_timestamps.ICUDurationHours <= 48].reset_index(drop=True)
+day3_discharges = ICU_adm_disch_timestamps[ICU_adm_disch_timestamps.ICUDurationHours <= 72].reset_index(drop=True)
+
 # Create directory to store model performance metrics
-VERSION = 'v2-0'
+VERSION = 'v2-1'
 perf_dir = '../model_performance/'+VERSION
 os.makedirs(perf_dir,exist_ok=True)
 
@@ -62,15 +67,27 @@ NUM_RESAMP = 1000
 cv_splits = pd.read_csv('../cross_validation_splits.csv')
 study_GUPI_GOSE = cv_splits[['GUPI','GOSE']].drop_duplicates()
 
+# Filter out GOSE of day 2 and day 3 discharge patients
+day2_GUPI_GOSE = study_GUPI_GOSE[study_GUPI_GOSE.GUPI.isin(day2_discharges.GUPI)].reset_index(drop=True)
+day3_GUPI_GOSE = study_GUPI_GOSE[study_GUPI_GOSE.GUPI.isin(day3_discharges.GUPI)].reset_index(drop=True)
+
 # If bootstrapping resamples don't exist, create them
 if not os.path.exists(os.path.join(perf_dir,'bs_resamples.pkl')):
     
-    # Make stratified resamples for bootstrapping metrics
-    bs_rs_GUPIs = [resample(study_GUPI_GOSE.GUPI.values,replace=True,n_samples=study_GUPI_GOSE.shape[0],stratify=study_GUPI_GOSE.GOSE.values) for _ in range(NUM_RESAMP)]
-    bs_rs_GUPIs = [np.unique(curr_rs) for curr_rs in bs_rs_GUPIs]
+    # Make stratified resamples for day2 bootstrapping metrics
+    day2_bs_rs_GUPIs = [resample(day2_GUPI_GOSE.GUPI.values,replace=True,n_samples=day2_GUPI_GOSE.shape[0],stratify=day2_GUPI_GOSE.GOSE.values) for _ in range(NUM_RESAMP)]
+    day2_bs_rs_GUPIs = [np.unique(curr_rs) for curr_rs in day2_bs_rs_GUPIs]
 
+    # Make stratified resamples for day3 bootstrapping metrics
+    day3_bs_rs_GUPIs = [resample(day3_GUPI_GOSE.GUPI.values,replace=True,n_samples=day3_GUPI_GOSE.shape[0],stratify=day3_GUPI_GOSE.GOSE.values) for _ in range(NUM_RESAMP)]
+    day3_bs_rs_GUPIs = [np.unique(curr_rs) for curr_rs in day3_bs_rs_GUPIs]
+    
     # Create Data Frame to store bootstrapping resmaples 
-    bs_resamples = pd.DataFrame({'RESAMPLE_IDX':[i+1 for i in range(NUM_RESAMP)],'GUPIs':bs_rs_GUPIs})
+    day2_bs_resamples = pd.DataFrame({'RESAMPLE_IDX':[i+1 for i in range(NUM_RESAMP)],'GUPIs':day2_bs_rs_GUPIs,'CUTOFF':'Day2'})
+    day3_bs_resamples = pd.DataFrame({'RESAMPLE_IDX':[i+1 for i in range(NUM_RESAMP)],'GUPIs':day3_bs_rs_GUPIs,'CUTOFF':'Day3'})
+    
+    # Concatenate the 2 dataframes
+    bs_resamples = pd.concat([day2_bs_resamples,day3_bs_resamples],ignore_index=True)
     
     # Save bootstrapping resample dataframe
     bs_resamples.to_pickle(os.path.join(perf_dir,'bs_resamples.pkl'))
@@ -80,7 +97,7 @@ else:
     bs_resamples = pd.read_pickle(os.path.join(perf_dir,'bs_resamples.pkl'))
 
 # Define model version directory
-model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+VERSION
+model_dir = '/home/sb2406/rds/hpc-work/model_outputs/v2-0'
 
 # Load tuning grid of current model version
 tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
@@ -98,9 +115,10 @@ def main(array_task_id):
     curr_adm_or_disch = rs_model_combos.adm_or_disch[array_task_id]
     curr_rs_idx = rs_model_combos.RESAMPLE_IDX[array_task_id]
     curr_tune_idx = rs_model_combos.tune_idx[array_task_id]
+    curr_cutoff = rs_model_combos.CUTOFF[array_task_id]
     
     # Create directory to save current combination outputs
-    metric_dir = os.path.join(perf_dir,curr_adm_or_disch,'tune'+str(curr_tune_idx).zfill(4),'resample'+str(curr_rs_idx).zfill(4))
+    metric_dir = os.path.join(perf_dir,curr_cutoff,curr_adm_or_disch,'tune'+str(curr_tune_idx).zfill(4),'resample'+str(curr_rs_idx).zfill(4))
     os.makedirs(metric_dir,exist_ok=True)
     
     # Load compiled testing set predictions
@@ -108,9 +126,6 @@ def main(array_task_id):
     
     # Filter out predictions of current tuning index
     compiled_test_preds = compiled_test_preds[compiled_test_preds.tune_idx == curr_tune_idx].reset_index(drop=True)
-    
-    # Define sequence of window indices for model assessment
-    window_indices = compiled_test_preds.WindowIdx.unique().tolist()
     
     # Calculate cumulative probabilities at each threshold
     prob_cols = [col for col in compiled_test_preds if col.startswith('Pr(GOSE=')]
@@ -132,6 +147,9 @@ def main(array_task_id):
     
     ### Filter in-sample predictions for current bootstrapping resample
     curr_is_preds = compiled_test_preds[compiled_test_preds.GUPI.isin(curr_gupis)].reset_index(drop=True)
+    
+    # Define sequence of window indices for model assessment
+    window_indices = curr_is_preds.WindowIdx.unique().tolist()
     
     ### ORC
     orcs = []
@@ -191,23 +209,23 @@ def main(array_task_id):
                                          'THRESHOLD':thresh_labels,
                                          'METRIC':'AUC',
                                          'VALUE':roc_auc_score(filt_is_preds[thresh_labels],filt_is_preds[thresh_prob_labels],average=None)}))
-        for thresh in thresh_labels:
-            prob_name = 'Pr('+thresh+')'
-            (fpr, tpr, _) = roc_curve(filt_is_preds[thresh], filt_is_preds[prob_name])
-            interp_tpr = np.interp(np.linspace(0,1,200),fpr,tpr)
-            roc_axes = pd.DataFrame({'WINDOW_IDX':curr_wi,'THRESHOLD':thresh,'FPR':np.linspace(0,1,200),'TPR':interp_tpr})
-            thresh_rocs.append(roc_axes)
-    thresh_rocs = pd.concat(thresh_rocs,ignore_index = True)
-    thresh_rocs['ADM_OR_DISCH']=curr_adm_or_disch
-    thresh_rocs['TUNE_IDX']=curr_tune_idx
-    thresh_rocs['RESAMPLE_IDX']=curr_rs_idx
-    thresh_rocs.to_csv(os.path.join(metric_dir,'ROCs.csv'),index=False)
+#         for thresh in thresh_labels:
+#             prob_name = 'Pr('+thresh+')'
+#             (fpr, tpr, _) = roc_curve(filt_is_preds[thresh], filt_is_preds[prob_name])
+#             interp_tpr = np.interp(np.linspace(0,1,200),fpr,tpr)
+#             roc_axes = pd.DataFrame({'WINDOW_IDX':curr_wi,'THRESHOLD':thresh,'FPR':np.linspace(0,1,200),'TPR':interp_tpr})
+#             thresh_rocs.append(roc_axes)
+#     thresh_rocs = pd.concat(thresh_rocs,ignore_index = True)
+#     thresh_rocs['ADM_OR_DISCH']=curr_adm_or_disch
+#     thresh_rocs['TUNE_IDX']=curr_tune_idx
+#     thresh_rocs['RESAMPLE_IDX']=curr_rs_idx
+#     thresh_rocs.to_csv(os.path.join(metric_dir,'ROCs.csv'),index=False)
     thresh_aucs = pd.concat(thresh_aucs,ignore_index = True)
     
     ### Threshold-level calibration curves and associated metrics
     thresh_labels = ['GOSE>1','GOSE>3','GOSE>4','GOSE>5','GOSE>6','GOSE>7']
     calib_metrics = []
-    calib_curves = []
+#     calib_curves = []
     for curr_wi in window_indices:
         filt_is_preds = curr_is_preds[curr_is_preds.WindowIdx == curr_wi].reset_index(drop=True)
         for thresh in thresh_labels:
@@ -222,17 +240,17 @@ def main(array_task_id):
                                                'THRESHOLD':thresh,
                                                'METRIC':['Calib_Slope'],
                                                'VALUE':calib_glm_res.params[1]}))
-            TrueProb = lowess(endog = filt_is_preds[thresh], exog = filt_is_preds[thresh_prob_name], it = 0, xvals = np.linspace(0,1,200))
-            calib_curves.append(pd.DataFrame({'ADM_OR_DISCH':curr_adm_or_disch,
-                                              'TUNE_IDX':curr_tune_idx,
-                                              'RESAMPLE_IDX':curr_rs_idx,
-                                              'WINDOW_IDX':curr_wi,
-                                              'THRESHOLD':thresh,
-                                              'PREDPROB':np.linspace(0,1,200),
-                                              'TRUEPROB':TrueProb}))
+#             TrueProb = lowess(endog = filt_is_preds[thresh], exog = filt_is_preds[thresh_prob_name], it = 0, xvals = np.linspace(0,1,200))
+#             calib_curves.append(pd.DataFrame({'ADM_OR_DISCH':curr_adm_or_disch,
+#                                               'TUNE_IDX':curr_tune_idx,
+#                                               'RESAMPLE_IDX':curr_rs_idx,
+#                                               'WINDOW_IDX':curr_wi,
+#                                               'THRESHOLD':thresh,
+#                                               'PREDPROB':np.linspace(0,1,200),
+#                                               'TRUEPROB':TrueProb}))
     calib_metrics = pd.concat(calib_metrics,ignore_index = True).reset_index(drop=True)
-    calib_curves = pd.concat(calib_curves,ignore_index = True)
-    calib_curves.to_csv(os.path.join(metric_dir,'calibration_curves.csv'),index=False)
+#     calib_curves = pd.concat(calib_curves,ignore_index = True)
+#     calib_curves.to_csv(os.path.join(metric_dir,'calibration_curves.csv'),index=False)
     
     #### Compile and save threshold-level metrics
     thresh_level_metrics = pd.concat([thresh_aucs,calib_metrics],ignore_index=True)
@@ -240,5 +258,5 @@ def main(array_task_id):
     
 if __name__ == '__main__':
     
-    array_task_id = int(sys.argv[1])+1000    
+    array_task_id = int(sys.argv[1])+1000
     main(array_task_id)

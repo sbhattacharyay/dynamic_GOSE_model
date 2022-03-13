@@ -735,5 +735,191 @@ individual.trajectories %>%
     legend.position = 'bottom',
     legend.title = element_text(color = "black", face = 'bold'))
 
+icu.timestamps <- read.csv('../timestamps/ICU_adm_disch_timestamps.csv') %>%
+  filter(GUPI == '2JwX739')
+
 demo.info <- read.csv('../CENTER-TBI/DemoInjHospMedHx/data.csv') %>%
   filter(GUPI == '2JwX739')
+
+biomarkers <- read.csv('../CENTER-TBI/Biomarkers/data.csv') %>%
+  filter(GUPI == '2JwX739')
+
+meds <- read.csv('../CENTER-TBI/Medication/data.csv') %>%
+  filter(GUPI == '2JwX739')
+
+central.haemo <- read.csv('../CENTER-TBI/CentralHaemostasis/data.csv') %>%
+  filter(GUPI == '2JwX739')
+
+dh.values <- read.csv('../CENTER-TBI/DailyHourlyValues/data.csv') %>%
+  filter(GUPI == '2JwX739')
+
+dtil.values <- read.csv('../CENTER-TBI/DailyTIL/data.csv') %>%
+  filter(GUPI == '2JwX739')
+
+daily.values <- read.csv('../CENTER-TBI/DailyVitals/data.csv') %>%
+  filter(GUPI == '2JwX739')
+
+###### v2-1
+# Load 95% confidence interval for performance metrics
+tuning.grid <- read.csv('../model_outputs/v2-0/tuning_grid.csv') %>%
+  select(tune_idx,WINDOW_DURATION) %>%
+  distinct() %>%
+  rename(TUNE_IDX = tune_idx) 
+day.2.overall.metrics <- read.csv('../model_performance/v2-1/Day2/CI_overall_metrics.csv') %>%
+  left_join(tuning.grid,by = 'TUNE_IDX')
+day.2.thresh.metrics <- read.csv('../model_performance/v2-1/Day2/CI_threshold_metrics.csv') %>%
+  left_join(tuning.grid,by = 'TUNE_IDX') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*WINDOW_DURATION)/24,
+         WindowLabel = paste(WINDOW_DURATION,'hrs'))
+
+day.3.overall.metrics <- read.csv('../model_performance/v2-1/Day3/CI_overall_metrics.csv') %>%
+  left_join(tuning.grid,by = 'TUNE_IDX')
+day.3.thresh.metrics <- read.csv('../model_performance/v2-1/Day3/CI_threshold_metrics.csv') %>%
+  left_join(tuning.grid,by = 'TUNE_IDX') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*WINDOW_DURATION)/24,
+         WindowLabel = paste(WINDOW_DURATION,'hrs'))
+
+### ORC - Day2
+day.2.adm.orc <- day.2.overall.metrics %>%
+  filter(METRIC == 'ORC',
+         ADM_OR_DISCH == 'adm') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*WINDOW_DURATION)/24,
+         WindowLabel = paste(WINDOW_DURATION,'hrs')) %>%
+  mutate(WindowLabel = factor(WindowLabel,levels = c('2 hrs','8 hrs','12 hrs','24 hrs'))) %>%
+  filter(Days <= 2) %>%
+  drop_na(lo) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=WindowLabel),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=WindowLabel),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,2),ylim = c(0.6,.8)) + 
+  scale_x_continuous(breaks=seq(0,2,by=.5),expand = expansion(mult = c(0, .01)))+
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7741341, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7573236, color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(yintercept = 0.7400537, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Ordinal c-index')+
+  xlab('Days from ICU admission')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm"),
+    legend.position = 'bottom',
+    legend.title = element_text(color = "black", face = 'bold')
+  )
+
+day.2.disch.orc <- day.2.overall.metrics %>%
+  filter(METRIC == 'ORC',
+         ADM_OR_DISCH == 'disch')  %>%
+  rowwise() %>%
+  mutate(Days = ((WINDOW_IDX-1)*WINDOW_DURATION)/24,
+         WindowLabel = paste(WINDOW_DURATION,'hrs')) %>%
+  mutate(WindowLabel = factor(WindowLabel,levels = c('2 hrs','8 hrs','12 hrs','24 hrs'))) %>%
+  filter(Days <= 2) %>%
+  drop_na(lo) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=WindowLabel),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=WindowLabel),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(2,0),ylim = c(0.6,.8)) + 
+  scale_x_reverse(breaks=seq(0,2,by=.5),expand = expansion(mult = c(0.01, 0.005)))+ 
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7741341, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7573236, color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(yintercept = 0.7400537, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Ordinal c-index')+
+  xlab('Days before ICU discharge')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm"),
+    legend.position = 'bottom',
+    legend.title = element_text(color = "black", face = 'bold')
+  )
+
+### ORC - Day3
+day.3.adm.orc <- day.3.overall.metrics %>%
+  filter(METRIC == 'ORC',
+         ADM_OR_DISCH == 'adm') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*WINDOW_DURATION)/24,
+         WindowLabel = paste(WINDOW_DURATION,'hrs')) %>%
+  mutate(WindowLabel = factor(WindowLabel,levels = c('2 hrs','8 hrs','12 hrs','24 hrs'))) %>%
+  filter(Days <= 3) %>%
+  drop_na(lo) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=WindowLabel),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=WindowLabel),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,3),ylim = c(0.6,.8)) + 
+  scale_x_continuous(breaks=seq(0,3,by=.5),expand = expansion(mult = c(0, .01)))+
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7741341, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7573236, color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(yintercept = 0.7400537, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Ordinal c-index')+
+  xlab('Days from ICU admission')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm"),
+    legend.position = 'bottom',
+    legend.title = element_text(color = "black", face = 'bold')
+  )
+
+day.3.disch.orc <- day.3.overall.metrics %>%
+  filter(METRIC == 'ORC',
+         ADM_OR_DISCH == 'disch')  %>%
+  rowwise() %>%
+  mutate(Days = ((WINDOW_IDX-1)*WINDOW_DURATION)/24,
+         WindowLabel = paste(WINDOW_DURATION,'hrs')) %>%
+  mutate(WindowLabel = factor(WindowLabel,levels = c('2 hrs','8 hrs','12 hrs','24 hrs'))) %>%
+  filter(Days <= 3) %>%
+  drop_na(lo) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=WindowLabel),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=WindowLabel),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(3,0),ylim = c(0.6,.8)) + 
+  scale_x_reverse(breaks=seq(0,3,by=.5),expand = expansion(mult = c(0.01, 0.005)))+ 
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7741341, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7573236, color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(yintercept = 0.7400537, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Ordinal c-index')+
+  xlab('Days before ICU discharge')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm"),
+    legend.position = 'bottom',
+    legend.title = element_text(color = "black", face = 'bold')
+  )
+

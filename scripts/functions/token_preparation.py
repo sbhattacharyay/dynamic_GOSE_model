@@ -136,21 +136,62 @@ def get_token_info(index_df,vocab_df,missing = True, progress_bar=True, progress
     for curr_row in iterator:
         
         curr_IndexList = index_df.VocabIndex[curr_row]
-
-        filt_vocab = vocab_df[vocab_df.VocabIndex.isin(curr_IndexList)].reset_index(drop=True)
         
-        if not missing:
-            filt_vocab = filt_vocab[~filt_vocab.Missing].reset_index(drop=True)
+        if np.isnan(curr_IndexList).all():
+            compiled_token_characteristics.append(pd.DataFrame({'GUPI':index_df.GUPI[curr_row],
+                                                    'TimeStampStart':index_df.TimeStampStart[curr_row],
+                                                    'TimeStampEnd':index_df.TimeStampEnd[curr_row],
+                                                    'WindowIdx':index_df.WindowIdx[curr_row],
+                                                    'WindowTotal':index_df.WindowTotal[curr_row],
+                                                    'TotalTokens':0,
+                                                    'Baseline':0,
+                                                    'Numeric':0,
+                                                    'ICUIntervention':0,
+                                                    'ClinicianInput':0},index=[0]))
+        elif (len(curr_IndexList) == 1):
+            filt_vocab = vocab_df[vocab_df.VocabIndex.isin(curr_IndexList)].reset_index(drop=True)
             
-        compiled_token_characteristics.append(pd.DataFrame({'GUPI':index_df.GUPI[curr_row],
-                                                            'TimeStampStart':index_df.TimeStampStart[curr_row],
-                                                            'TimeStampEnd':index_df.TimeStampEnd[curr_row],
-                                                            'WindowIdx':index_df.WindowIdx[curr_row],
-                                                            'WindowTotal':index_df.WindowTotal[curr_row],
-                                                            'TotalTokens':filt_vocab.shape[0],
-                                                            'Baseline':filt_vocab.Baseline.sum(),
-                                                            'Numeric':filt_vocab.Numeric.sum(),
-                                                            'ICUIntervention':filt_vocab.ICUIntervention.sum(),
-                                                            'ClinicianInput':filt_vocab.ClinicianInput.sum()},index=[0]))
-    
+            if not missing:
+                filt_vocab = filt_vocab[~filt_vocab.Missing].reset_index(drop=True)
+            
+            if (filt_vocab.shape[0] == 0):
+                compiled_token_characteristics.append(pd.DataFrame({'GUPI':index_df.GUPI[curr_row],
+                                        'TimeStampStart':index_df.TimeStampStart[curr_row],
+                                        'TimeStampEnd':index_df.TimeStampEnd[curr_row],
+                                        'WindowIdx':index_df.WindowIdx[curr_row],
+                                        'WindowTotal':index_df.WindowTotal[curr_row],
+                                        'TotalTokens':0,
+                                        'Baseline':0,
+                                        'Numeric':0,
+                                        'ICUIntervention':0,
+                                        'ClinicianInput':0},index=[0]))
+            else:
+                compiled_token_characteristics.append(pd.DataFrame({'GUPI':index_df.GUPI[curr_row],
+                                                        'TimeStampStart':index_df.TimeStampStart[curr_row],
+                                                        'TimeStampEnd':index_df.TimeStampEnd[curr_row],
+                                                        'WindowIdx':index_df.WindowIdx[curr_row],
+                                                        'WindowTotal':index_df.WindowTotal[curr_row],
+                                                        'TotalTokens':filt_vocab.shape[0],
+                                                        'Baseline':int(filt_vocab.Baseline[0]),
+                                                        'Numeric':int(filt_vocab.Numeric[0]),
+                                                        'ICUIntervention':int(filt_vocab.ICUIntervention[0]),
+                                                        'ClinicianInput':int(filt_vocab.ClinicianInput[0])},index=[0]))
+            
+        else:
+            filt_vocab = vocab_df[vocab_df.VocabIndex.isin(curr_IndexList)].reset_index(drop=True)
+
+            if not missing:
+                filt_vocab = filt_vocab[~filt_vocab.Missing].reset_index(drop=True)
+
+            compiled_token_characteristics.append(pd.DataFrame({'GUPI':index_df.GUPI[curr_row],
+                                                                'TimeStampStart':index_df.TimeStampStart[curr_row],
+                                                                'TimeStampEnd':index_df.TimeStampEnd[curr_row],
+                                                                'WindowIdx':index_df.WindowIdx[curr_row],
+                                                                'WindowTotal':index_df.WindowTotal[curr_row],
+                                                                'TotalTokens':filt_vocab.shape[0],
+                                                                'Baseline':filt_vocab.Baseline.sum(),
+                                                                'Numeric':filt_vocab.Numeric.sum(),
+                                                                'ICUIntervention':filt_vocab.ICUIntervention.sum(),
+                                                                'ClinicianInput':filt_vocab.ClinicianInput.sum()},index=[0]))
+            
     return pd.concat(compiled_token_characteristics,ignore_index=True)

@@ -218,3 +218,15 @@ def load_tune_predictions(info_df, progress_bar=True, progress_bar_desc=''):
         compiled_predictions.append(curr_preds)
         
     return pd.concat(compiled_predictions,ignore_index=True)
+
+def format_shap(shap_matrix,idx,token_labels,testing_set):
+    shap_df = []
+    for curr_pt_idx in range(shap_matrix.shape[0]):
+        curr_pt_shap_matrix = shap_matrix[curr_pt_idx,:,:]
+        curr_pt_shap_df = pd.DataFrame(curr_pt_shap_matrix,columns=token_labels)
+        curr_pt_shap_df['GUPI'] = testing_set.GUPI.unique()[curr_pt_idx]
+        curr_pt_shap_df['WindowIdx'] = list(range(1,curr_pt_shap_df.shape[0]+1))
+        curr_pt_shap_df = curr_pt_shap_df.melt(id_vars = ['GUPI','WindowIdx'], var_name = 'Token', value_name = 'SHAP')
+        curr_pt_shap_df['label'] = idx
+        shap_df.append(curr_pt_shap_df)
+    return pd.concat(shap_df,ignore_index=True)

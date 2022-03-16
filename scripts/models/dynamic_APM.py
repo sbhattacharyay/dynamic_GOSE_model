@@ -262,3 +262,62 @@ class GOSE_model(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(),lr=self.learning_rate)
         return optimizer
+    
+# dynamic GOSE prediction model modification for SHAP calculation
+class shap_GOSE_model(nn.Module):
+    def __init__(self,vocab_embed_matrix,W_ir,W_iz,W_in,W_hr,W_hz,W_hn,b_ir,b_iz,b_in,b_hr,b_hz,b_hn,hidden2gose,prediction_point,prob=False,thresh=False):
+        super(shap_GOSE_model, self).__init__()
+        
+        self.vocab_embed_matrix = vocab_embed_matrix
+
+        self.input_reset = nn.Linear(W_ir.shape[1],W_ir.shape[0])
+        self.input_reset.weight = nn.Parameter(W_ir)
+        self.input_reset.bias = nn.Parameter(b_ir)
+        
+        self.hidden_reset = nn.Linear(W_hr.shape[1],W_hr.shape[0])
+        self.hidden_reset.weight = nn.Parameter(W_hr)
+        self.hidden_reset.bias = nn.Parameter(b_hr)
+        
+        self.input_update = nn.Linear(W_iz.shape[1],W_iz.shape[0])
+        self.input_update.weight = nn.Parameter(W_iz)
+        self.input_update.bias = nn.Parameter(b_iz)
+        
+        self.hidden_update = nn.Linear(W_hz.shape[1],W_hz.shape[0])
+        self.hidden_update.weight = nn.Parameter(W_hz)
+        self.hidden_update.bias = nn.Parameter(b_hz)
+        
+        self.input_new = nn.Linear(W_in.shape[1],W_in.shape[0])
+        self.input_new.weight = nn.Parameter(W_in)
+        self.input_new.bias = nn.Parameter(b_in)
+        
+        self.hidden_new = nn.Linear(W_hn.shape[1],W_hn.shape[0])
+        self.hidden_new.weight = nn.Parameter(W_hn)
+        self.hidden_new.bias = nn.Parameter(b_hn)
+
+        self.hidden2gose = hidden2gose
+        self.prediction_point = prediction_point
+        self.prob = prob
+        self.thresh = thresh
+        
+    def forward(self, x):
+        
+        embed_x = F.relu(torch.div(torch.matmul(x,self.vocab_embed_matrix),x.sum(2)[:,:,None]))
+        
+        r1 = F.sigmoid(self.input_reset(embed_x[:,0,:]))
+        z1 = F.sigmoid(self.input_update(embed_x[:,0,:]))
+        n1 = F.tanh(self.input_new(embed_x[:,0,:]))
+        ht = ((1 - z1)*n1)
+        
+        if self.prediction_point > 1:
+            for curr_t in range(1,self.prediction_point):
+                rt = F.sigmoid(self.input_reset(embed_x[:,curr_t,:]) + self.hidden_reset(ht))
+                zt = F.sigmoid(self.input_update(embed_x[:,curr_t,:]) + self.hidden_update(ht))
+                nt = F.tanh(self.input_new(embed_x[:,curr_t,:]) + (rt*(self.hidden_reset(ht))))
+                ht = ((1 - zt)*nt) + (zt * ht)
+                
+        gose_out = self.hidden2gose(ht)
+        
+        if self.prob:
+            return F.softmax(gose_out,dim=1)
+        else:
+            return gose_out

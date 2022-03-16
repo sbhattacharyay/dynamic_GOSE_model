@@ -221,3 +221,29 @@ add.date.interval.tokens <- function(curr.tokens,variable,end.case.variables,cur
   }
   return(curr.tokens)
 }
+
+differentiate.tokens <- function(curr.tokens,adm.or.disch = 'adm'){
+  earliest.window.idx <- curr.tokens$WindowIdx[curr.tokens$TimeStampStart == min(curr.tokens$TimeStampStart)]
+  latest.window.idx <- curr.tokens$WindowIdx[curr.tokens$TimeStampStart == max(curr.tokens$TimeStampStart)]
+  curr.tokens$DiffToken <- ''
+  curr.tokens$DiffToken[curr.tokens$WindowIdx == earliest.window.idx] <- curr.tokens$Token[curr.tokens$WindowIdx == earliest.window.idx]
+  if (adm.or.disch == 'adm'){
+    for (curr.idx in (earliest.window.idx+1):latest.window.idx){
+      curr.idx.Token <- unlist(strsplit(curr.tokens$Token[curr.tokens$WindowIdx == curr.idx],split =' '))
+      prev.idx.Token <- unlist(strsplit(curr.tokens$Token[curr.tokens$WindowIdx == (curr.idx-1)],split =' '))
+      curr.diff.Token <- str_trim(paste(curr.idx.Token[!(curr.idx.Token %in% prev.idx.Token)],collapse = ' '))
+      curr.tokens$DiffToken[curr.tokens$WindowIdx == curr.idx] <- curr.diff.Token
+    }
+  } else if (adm.or.disch == 'disch') {
+    for (curr.idx in (earliest.window.idx-1):latest.window.idx){
+      curr.idx.Token <- unlist(strsplit(curr.tokens$Token[curr.tokens$WindowIdx == curr.idx],split =' '))
+      prev.idx.Token <- unlist(strsplit(curr.tokens$Token[curr.tokens$WindowIdx == (curr.idx+1)],split =' '))
+      curr.diff.Token <- str_trim(paste(curr.idx.Token[!(curr.idx.Token %in% prev.idx.Token)],collapse = ' '))
+      curr.tokens$DiffToken[curr.tokens$WindowIdx == curr.idx] <- curr.diff.Token
+    }
+  }
+  curr.tokens <- curr.tokens %>%
+    select(-Token) %>%
+    rename(Token = DiffToken)
+  return(curr.tokens)
+}

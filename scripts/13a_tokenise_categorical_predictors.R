@@ -50,93 +50,111 @@ cv.folds <- read.csv('../cross_validation_splits.csv')
 ### II. Prepare categorical CENTER-TBI predictors into tokens
 ## Load non-baseline categorical predictors
 # Load timestamp variables
-ct.imaging <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_ct_imaging.csv') %>%
+ct.imaging <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_ct_imaging.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-mr.imaging <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_mr_imaging.csv') %>%
+mr.imaging <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_mr_imaging.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-dh.values <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_hourly.csv') %>%
+dh.values <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_hourly.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-daily.TIL <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_TIL.csv') %>%
+daily.TIL <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_TIL.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-icp.catheter <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_icp_catheter.csv') %>%
+icp.catheter <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_icp_catheter.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-labs <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_labs.csv') %>%
+labs <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_labs.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-reintubation <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_reintubation.csv') %>%
+reintubation <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_reintubation.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-remech.vent <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_remech_ventilation.csv') %>%
+remech.vent <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_remech_ventilation.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
 
 # Load date-based, single-event variables
-daily.vitals <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_vitals.csv') %>%
+daily.vitals <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_vitals.csv') %>%
   mutate(DVDate = as.POSIXct(DVDate,tz = 'GMT'))
-toc <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_transitions_of_care.csv') %>%
+toc <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_transitions_of_care.csv') %>%
   mutate(DateEffectiveTransfer = as.POSIXct(DateEffectiveTransfer,tz = 'GMT'))
 
 # Load timestamped interval variables
-icp.monitoring <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_icp_monitoring.csv') %>%
+icp.monitoring <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_icp_monitoring.csv') %>%
   mutate(ICPInsTimestamp = as.POSIXct(ICPInsTimestamp,tz = 'GMT'),
-         ICPRemTimestamp = as.POSIXct(ICPRemTimestamp,tz = 'GMT'))
-intubation <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_intubation.csv') %>%
+         ICPRemTimestamp = as.POSIXct(ICPRemTimestamp,tz = 'GMT')) %>%
+  select(-ICUCatheterICP)
+intubation <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_intubation.csv') %>%
   mutate(IntubationStartTimestamp = as.POSIXct(IntubationStartTimestamp,tz = 'GMT'),
          IntubationStopTimestamp = as.POSIXct(IntubationStopTimestamp,tz = 'GMT'))
-mech.vent <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_mech_ventilation.csv') %>%
+mech.vent <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_mech_ventilation.csv') %>%
   mutate(MechVentilationStartTimestamp = as.POSIXct(MechVentilationStartTimestamp,tz = 'GMT'),
-         MechVentilationStopTimestamp = as.POSIXct(MechVentilationStopTimestamp,tz = 'GMT'))
-surgeries.cranial <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_surgeries_cranial.csv') %>%
+         MechVentilationStopTimestamp = as.POSIXct(MechVentilationStopTimestamp,tz = 'GMT')) %>%
+  mutate(MechVentilationStop = 'MechVentilationStop_1')
+surgeries.cranial <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_surgeries_cranial.csv') %>%
   mutate(StartTimeStamp = as.POSIXct(StartTimeStamp,tz = 'GMT'),
-         EndTimeStamp = as.POSIXct(EndTimeStamp,tz = 'GMT'))
-surgeries.extra.cranial <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_surgeries_extra_cranial.csv') %>%
+         EndTimeStamp = as.POSIXct(EndTimeStamp,tz = 'GMT')) %>%
+  mutate(SurgeryCranialStop = 'SurgeryCranialStop_1')
+surgeries.extra.cranial <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_surgeries_extra_cranial.csv') %>%
   mutate(StartTimeStamp = as.POSIXct(StartTimeStamp,tz = 'GMT'),
-         EndTimeStamp = as.POSIXct(EndTimeStamp,tz = 'GMT'))
+         EndTimeStamp = as.POSIXct(EndTimeStamp,tz = 'GMT')) %>%
+  mutate(SurgeryExtraCranialStop = 'SurgeryExtraCranialStop_1')
 
 # Load dated interval variables
-dvt.mech <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_dvt_mech.csv') %>%
+dvt.mech <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_dvt_mech.csv') %>%
   mutate(DVTProphylaxisMechStartDate = as.POSIXct(DVTProphylaxisMechStartDate,tz = 'GMT'),
-         DVTProphylaxisMechStopDate = as.POSIXct(DVTProphylaxisMechStopDate,tz = 'GMT'))
-dvt.pharm <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_dvt_pharm.csv') %>%
+         DVTProphylaxisMechStopDate = as.POSIXct(DVTProphylaxisMechStopDate,tz = 'GMT')) %>%
+  mutate(DVTProphylaxisMechStop = 'DVTProphylaxisMechStop_1')
+dvt.pharm <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_dvt_pharm.csv') %>%
   mutate(DVTProphylaxisStartDate = as.POSIXct(DVTProphylaxisStartDate,tz = 'GMT'),
-         DVTProphylaxisStopDate = as.POSIXct(DVTProphylaxisStopDate,tz = 'GMT'))
-enteral <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_enteral_nutrition.csv') %>%
+         DVTProphylaxisStopDate = as.POSIXct(DVTProphylaxisStopDate,tz = 'GMT')) %>%
+  mutate(DVTProphylaxisStop = 'DVTProphylaxisStop_1')
+enteral <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_enteral_nutrition.csv') %>%
   mutate(EnteralNutritionStartDate = as.POSIXct(EnteralNutritionStartDate,tz = 'GMT'),
-         EnteralNutritionStopDate = as.POSIXct(EnteralNutritionStopDate,tz = 'GMT'))
-parenteral <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_parenteral_nutrition.csv') %>%
+         EnteralNutritionStopDate = as.POSIXct(EnteralNutritionStopDate,tz = 'GMT')) %>%
+  mutate(EnteralNutritionStop = 'EnteralNutritionStop_1')
+parenteral <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_parenteral_nutrition.csv') %>%
   mutate(ParenteralNutritionStartDate = as.POSIXct(ParenteralNutritionStartDate,tz = 'GMT'),
-         ParenteralNutritionStopDate = as.POSIXct(ParenteralNutritionStopDate,tz = 'GMT'))
-meds <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_meds.csv') %>%
+         ParenteralNutritionStopDate = as.POSIXct(ParenteralNutritionStopDate,tz = 'GMT')) %>%
+  mutate(ParenteralNutritionStop = 'ParenteralNutritionStop_1')
+meds <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_meds.csv') %>%
   mutate(StartDate = as.POSIXct(StartDate,tz = 'GMT'),
-         StopDate = as.POSIXct(StopDate,tz = 'GMT'))
-nasogastric <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_nasogastric.csv') %>%
+         StopDate = as.POSIXct(StopDate,tz = 'GMT')) %>%
+  mutate(MedicationStop = 'MedicationStop_1')
+nasogastric <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_nasogastric.csv') %>%
   mutate(NasogastricStartDate = as.POSIXct(NasogastricStartDate,tz = 'GMT'),
-         NasogastricStopDate = as.POSIXct(NasogastricStopDate,tz = 'GMT'))
-oxy.admin <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_oxygen_administration.csv') %>%
+         NasogastricStopDate = as.POSIXct(NasogastricStopDate,tz = 'GMT')) %>%
+  mutate(NasogastricStop = 'NasogastricStop_1')
+oxy.admin <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_oxygen_administration.csv') %>%
   mutate(OxygenAdmStartDate = as.POSIXct(OxygenAdmStartDate,tz = 'GMT'),
-         OxygenAdmStopDate = as.POSIXct(OxygenAdmStopDate,tz = 'GMT'))
-peg.tube <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_peg_tube.csv') %>%
+         OxygenAdmStopDate = as.POSIXct(OxygenAdmStopDate,tz = 'GMT')) %>%
+  mutate(OxygenAdmStop = 'OxygenAdmStop_1')
+peg.tube <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_peg_tube.csv') %>%
   mutate(PEGTubeStartDate = as.POSIXct(PEGTubeStartDate,tz = 'GMT'),
-         PEGTubeStopDate = as.POSIXct(PEGTubeStopDate,tz = 'GMT'))
-tracheostomy <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_tracheostomy.csv') %>%
+         PEGTubeStopDate = as.POSIXct(PEGTubeStopDate,tz = 'GMT')) %>%
+  mutate(PEGTubeStop = 'PEGTubeStop_1')
+tracheostomy <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_tracheostomy.csv') %>%
   mutate(TracheostomyStartDate = as.POSIXct(TracheostomyStartDate,tz = 'GMT'),
-         TracheostomyStopDate = as.POSIXct(TracheostomyStopDate,tz = 'GMT'))
-urine.cath <- read.csv('~/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_urine_catheter.csv') %>%
+         TracheostomyStopDate = as.POSIXct(TracheostomyStopDate,tz = 'GMT')) %>%
+  mutate(TracheostomyStop = 'TracheostomyStop_1')
+urine.cath <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_urine_catheter.csv') %>%
   mutate(UrineCathStartDate = as.POSIXct(UrineCathStartDate,tz = 'GMT'),
-         UrineCathStopDate = as.POSIXct(UrineCathStopDate,tz = 'GMT'))
+         UrineCathStopDate = as.POSIXct(UrineCathStopDate,tz = 'GMT')) %>%
+  mutate(UrineCathStop = 'UrineCathStop_1')
 
 #In parallel, iterate through each GUPI and format categorical predictor tokens 
 foreach(curr.GUPI = study.GUPIs,.inorder = F) %dopar%{
   
   # Load baseline categorical predictors of current GUPI
-  curr.baseline.categorical.predictors <- read.csv(file.path('~/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'categorical_baseline_predictors.csv'))
+  curr.baseline.categorical.predictors <- read.csv(file.path('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'categorical_baseline_predictors.csv'))
   curr.baseline.categorical.predictors <- curr.baseline.categorical.predictors$Token[1]
   
   # Create token dataframes for both from-admission indexing and from-discharge indexing
   curr.from.adm.tokens <- from.adm.timestamps %>%
     filter(GUPI == curr.GUPI) %>%
-    mutate(Token = curr.baseline.categorical.predictors)
+    mutate(Token = '')
   
   curr.from.disch.tokens <- from.disch.timestamps %>%
     filter(GUPI == curr.GUPI) %>%
-    mutate(Token = curr.baseline.categorical.predictors)
+    mutate(Token = '')
+  
+  # Add baseline tokens to first window
+  curr.from.adm.tokens$Token[curr.from.adm.tokens$TimeStampStart == min(curr.from.adm.tokens$TimeStampStart)] <- curr.baseline.categorical.predictors
+  curr.from.disch.tokens$Token[curr.from.disch.tokens$TimeStampStart == min(curr.from.disch.tokens$TimeStampStart)] <- curr.baseline.categorical.predictors
   
   # Add timestamped single events from admission
   curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,ct.imaging,curr.GUPI)
@@ -177,15 +195,15 @@ foreach(curr.GUPI = study.GUPIs,.inorder = F) %dopar%{
                                                         curr.GUPI)
   curr.from.adm.tokens <- add.timestamp.interval.tokens(curr.from.adm.tokens,
                                                         mech.vent %>% rename(StartTimestamp = MechVentilationStartTimestamp, StopTimestamp = MechVentilationStopTimestamp),
-                                                        c(''),
+                                                        c('MechVentilationStop'),
                                                         curr.GUPI)
   curr.from.adm.tokens <- add.timestamp.interval.tokens(curr.from.adm.tokens,
                                                         surgeries.cranial %>% rename(StartTimestamp = StartTimeStamp, StopTimestamp = EndTimeStamp),
-                                                        c(''),
+                                                        c('SurgeryCranialStop'),
                                                         curr.GUPI)
   curr.from.adm.tokens <- add.timestamp.interval.tokens(curr.from.adm.tokens,
                                                         surgeries.extra.cranial %>% rename(StartTimestamp = StartTimeStamp, StopTimestamp = EndTimeStamp),
-                                                        c(''),
+                                                        c('SurgeryExtraCranialStop'),
                                                         curr.GUPI)
   
   # Add timestamped interval variables from discharge
@@ -199,116 +217,118 @@ foreach(curr.GUPI = study.GUPIs,.inorder = F) %dopar%{
                                                           curr.GUPI)
   curr.from.disch.tokens <- add.timestamp.interval.tokens(curr.from.disch.tokens,
                                                           mech.vent %>% rename(StartTimestamp = MechVentilationStartTimestamp, StopTimestamp = MechVentilationStopTimestamp),
-                                                          c(''),
+                                                          c('MechVentilationStop'),
                                                           curr.GUPI)
   curr.from.disch.tokens <- add.timestamp.interval.tokens(curr.from.disch.tokens,
                                                           surgeries.cranial %>% rename(StartTimestamp = StartTimeStamp, StopTimestamp = EndTimeStamp),
-                                                          c(''),
+                                                          c('SurgeryCranialStop'),
                                                           curr.GUPI)
   curr.from.disch.tokens <- add.timestamp.interval.tokens(curr.from.disch.tokens,
                                                           surgeries.extra.cranial %>% rename(StartTimestamp = StartTimeStamp, StopTimestamp = EndTimeStamp),
-                                                          c(''),
+                                                          c('SurgeryExtraCranialStop'),
                                                           curr.GUPI)
   
   # Add dated interval variables from admission
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    dvt.mech %>% rename(StartDate = DVTProphylaxisMechStartDate,StopDate = DVTProphylaxisMechStopDate),
-                                                   c(''),
+                                                   c('DVTProphylaxisMechStop'),
                                                    curr.GUPI)
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    dvt.pharm %>% rename(StartDate = DVTProphylaxisStartDate,StopDate = DVTProphylaxisStopDate),
-                                                   c(''),
+                                                   c('DVTProphylaxisStop'),
                                                    curr.GUPI)
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    enteral %>% rename(StartDate = EnteralNutritionStartDate,StopDate = EnteralNutritionStopDate),
-                                                   c(''),
+                                                   c('EnteralNutritionStop'),
                                                    curr.GUPI)
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    parenteral %>% rename(StartDate = ParenteralNutritionStartDate,StopDate = ParenteralNutritionStopDate),
-                                                   c(''),
+                                                   c('ParenteralNutritionStop'),
                                                    curr.GUPI)  
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    meds,
-                                                   c(''),
+                                                   c('MedicationStop'),
                                                    curr.GUPI)  
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    nasogastric %>% rename(StartDate = NasogastricStartDate,StopDate = NasogastricStopDate),
-                                                   c(''),
+                                                   c('NasogastricStop'),
                                                    curr.GUPI)  
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    oxy.admin %>% rename(StartDate = OxygenAdmStartDate,StopDate = OxygenAdmStopDate),
-                                                   c(''),
+                                                   c('OxygenAdmStop'),
                                                    curr.GUPI)  
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    peg.tube %>% rename(StartDate = PEGTubeStartDate,StopDate = PEGTubeStopDate),
-                                                   c(''),
+                                                   c('PEGTubeStop'),
                                                    curr.GUPI)  
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    tracheostomy %>% rename(StartDate = TracheostomyStartDate,StopDate = TracheostomyStopDate),
-                                                   c(''),
+                                                   c('TracheostomyStop'),
                                                    curr.GUPI)  
   curr.from.adm.tokens <- add.date.interval.tokens(curr.from.adm.tokens,
                                                    urine.cath %>% rename(StartDate = UrineCathStartDate,StopDate = UrineCathStopDate),
-                                                   c(''),
+                                                   c('UrineCathStop'),
                                                    curr.GUPI)
   
   # Add dated interval variables from discharge
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      dvt.mech %>% rename(StartDate = DVTProphylaxisMechStartDate,StopDate = DVTProphylaxisMechStopDate),
-                                                     c(''),
+                                                     c('DVTProphylaxisMechStop'),
                                                      curr.GUPI)
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      dvt.pharm %>% rename(StartDate = DVTProphylaxisStartDate,StopDate = DVTProphylaxisStopDate),
-                                                     c(''),
+                                                     c('DVTProphylaxisStop'),
                                                      curr.GUPI)
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      enteral %>% rename(StartDate = EnteralNutritionStartDate,StopDate = EnteralNutritionStopDate),
-                                                     c(''),
+                                                     c('EnteralNutritionStop'),
                                                      curr.GUPI)
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      parenteral %>% rename(StartDate = ParenteralNutritionStartDate,StopDate = ParenteralNutritionStopDate),
-                                                     c(''),
+                                                     c('ParenteralNutritionStop'),
                                                      curr.GUPI)  
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      meds,
-                                                     c(''),
+                                                     c('MedicationStop'),
                                                      curr.GUPI)  
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      nasogastric %>% rename(StartDate = NasogastricStartDate,StopDate = NasogastricStopDate),
-                                                     c(''),
+                                                     c('NasogastricStop'),
                                                      curr.GUPI)  
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      oxy.admin %>% rename(StartDate = OxygenAdmStartDate,StopDate = OxygenAdmStopDate),
-                                                     c(''),
+                                                     c('OxygenAdmStop'),
                                                      curr.GUPI)  
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      peg.tube %>% rename(StartDate = PEGTubeStartDate,StopDate = PEGTubeStopDate),
-                                                     c(''),
+                                                     c('PEGTubeStop'),
                                                      curr.GUPI)  
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      tracheostomy %>% rename(StartDate = TracheostomyStartDate,StopDate = TracheostomyStopDate),
-                                                     c(''),
+                                                     c('TracheostomyStop'),
                                                      curr.GUPI)  
   curr.from.disch.tokens <- add.date.interval.tokens(curr.from.disch.tokens,
                                                      urine.cath %>% rename(StartDate = UrineCathStartDate,StopDate = UrineCathStopDate),
-                                                     c(''),
+                                                     c('UrineCathStop'),
                                                      curr.GUPI)
   
-  # Ensure each window only contains unique tokens
+  # Ensure each window only contains unique tokens and convert token dataframes to differential token dataframes
   curr.from.adm.tokens <- curr.from.adm.tokens %>%
     rowwise() %>%
-    mutate(Token = paste(unique(unlist(strsplit(Token,split =' '))),collapse = ' '))
+    mutate(Token = str_trim(paste(unique(unlist(strsplit(Token,split =' '))),collapse = ' '))) %>%
+    differentiate.tokens(adm.or.disch = 'adm')
   
   curr.from.disch.tokens <- curr.from.disch.tokens %>%
     rowwise() %>%
-    mutate(Token = paste(unique(unlist(strsplit(Token,split =' '))),collapse = ' '))
+    mutate(Token = str_trim(paste(unique(unlist(strsplit(Token,split =' '))),collapse = ' '))) %>%
+    differentiate.tokens(adm.or.disch = 'disch')
   
   # Save formatted categorical tokens into patient-specific directory
   write.csv(curr.from.adm.tokens,
-            file.path('~/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'from_admission_categorical_tokens.csv'),
+            file.path('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'from_admission_categorical_tokens.csv'),
             row.names = F)
   
   write.csv(curr.from.disch.tokens,
-            file.path('~/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'from_discharge_categorical_tokens.csv'),
+            file.path('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'from_discharge_categorical_tokens.csv'),
             row.names = F)
 }

@@ -21,7 +21,7 @@ library(tidymodels)
 source('functions/token_preparation.R')
 
 # Set the number of parallel cores
-NUM.CORES <- detectCores() - 2
+NUM.CORES <- detectCores()
 
 # Initialize local cluster for parallel processing
 registerDoParallel(cores = NUM.CORES)

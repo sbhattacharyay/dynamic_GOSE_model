@@ -37,9 +37,9 @@ adm.token.characteristics <- read.csv('../tokens/repeat01/fold1/from_adm_token_c
 dynamic.token.plot <- ggplot(adm.token.characteristics,aes(x=DaysAfterICUAdmission,y=meanDynamicTokens)) +
   geom_line(color='red', alpha = 1, size=1.3/.pt)+
   geom_ribbon(aes(ymin = lowerBound, ymax = upperBound),alpha=.2,fill='red',size=.75/.pt,color=NA) + 
-  coord_cartesian(xlim=c(0,30)) + 
+  coord_cartesian(xlim=c(0,30),ylim=c(0,50)) + 
   scale_x_continuous(breaks=seq(0,30,by=1),expand = expansion(mult = c(0, .01)))+
-  scale_y_continuous(breaks=seq(0,150,by=25))+
+  scale_y_continuous(breaks=seq(0,75,by=25))+
   geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
   ylab(expression(bold(paste('Dynamic tokens per patient (', italic('n'), ')'))))+
   theme_bw()+
@@ -1236,4 +1236,311 @@ ggplot() +
     axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
     panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
     plot.margin=grid::unit(c(0,0,0,0), "mm")
+  )
+
+###### v4-0
+# Load 95% confidence interval for performance metrics
+overall.metrics <- read.csv('../model_performance/v4-0/CI_overall_metrics.csv')
+thresh.metrics <- read.csv('../model_performance/v4-0/CI_threshold_metrics.csv')
+
+### ORC
+adm.orc <- overall.metrics %>%
+  filter(METRIC == 'ORC',
+         ADM_OR_DISCH == 'adm',
+         TUNE_IDX %in% c(1,2)) %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=factor(TUNE_IDX)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=factor(TUNE_IDX)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7),ylim = c(0.6,.8)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7741341, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7573236, color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(yintercept = 0.7400537, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Ordinal c-index')+
+  xlab('Days from ICU admission')+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm")
+  )
+
+### Somers D
+adm.somers <- overall.metrics %>%
+  filter(METRIC == 'Somers D',
+         ADM_OR_DISCH == 'adm') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=factor(TUNE_IDX)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=factor(TUNE_IDX)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7),ylim = c(0.3,.6)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.5982590, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.5673806, color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(yintercept = 0.5358931, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Somers D')+
+  xlab('Days from ICU admission')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm")
+  )
+
+### Entropy
+adm.entropy <- overall.metrics %>%
+  filter(METRIC == 'Entropy',
+         ADM_OR_DISCH == 'adm') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=factor(TUNE_IDX)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=factor(TUNE_IDX)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7),ylim = c(1.25,2.8)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Shannon\'s Entropy')+
+  xlab('Days from ICU admission')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm")
+  )
+
+### AUC
+baseline.aucs <- read.csv('../../ordinal_GOSE_prediction/model_performance/APM/CI_threshold_metrics.csv') %>%
+  filter(METRIC == 'AUC',
+         Threshold != 'Average',
+         MODEL == 'APM_DeepMN') %>%
+  rename(THRESHOLD=Threshold)
+
+adm.auc <- thresh.metrics %>%
+  filter(METRIC == 'AUC',
+         ADM_OR_DISCH == 'adm',
+         THRESHOLD != 'Average') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24)
+
+ggplot() +
+  geom_line(data =adm.auc, aes(x=Days,y=mean,color=factor(TUNE_IDX)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(data =adm.auc, aes(x=Days,ymin = lo, ymax = hi,fill=factor(TUNE_IDX)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  geom_hline(data=baseline.aucs, aes(yintercept = hi), color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(data=baseline.aucs, aes(yintercept = mean), color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(data=baseline.aucs, aes(yintercept = lo), color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  facet_wrap(~THRESHOLD,ncol = 2,scales = 'free')+
+  ylab('AUC')+
+  xlab('Days from ICU admission')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm")
+  )
+
+### Calibration Slope
+baseline.calib.slope <- read.csv('../../ordinal_GOSE_prediction/model_performance/APM/CI_threshold_metrics.csv') %>%
+  filter(METRIC == 'Calib_Slope',
+         Threshold != 'Average',
+         MODEL == 'APM_DeepMN') %>%
+  rename(THRESHOLD=Threshold)
+
+adm.calib.slope <- thresh.metrics %>%
+  filter(METRIC == 'Calib_Slope',
+         ADM_OR_DISCH == 'adm',
+         THRESHOLD != 'Average',
+         TUNE_IDX %in% c(1,2)) %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24)
+
+ggplot() +
+  geom_line(data =adm.calib.slope, aes(x=Days,y=mean,color=factor(TUNE_IDX)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(data =adm.calib.slope, aes(x=Days,ymin = lo, ymax = hi,fill=factor(TUNE_IDX)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  geom_hline(data=baseline.calib.slope, aes(yintercept = hi), color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(data=baseline.calib.slope, aes(yintercept = mean), color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(data=baseline.calib.slope, aes(yintercept = lo), color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 1, color='orange',alpha = 1, size=2/.pt)+
+  facet_wrap(~THRESHOLD,ncol = 2,scales = 'free')+
+  ylab('Calibration Slope')+
+  xlab('Days from ICU admission')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm")
+  )
+
+##### Compare performance across model versions and configurations
+v1.overall.metrics <- read.csv('../model_performance/v1-0/CI_overall_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm') %>%
+  mutate(VERSION = 'v1') %>%
+  select(-ADM_OR_DISCH)
+v1.thresh.metrics <- read.csv('../model_performance/v1-0/CI_threshold_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm') %>%
+  mutate(VERSION = 'v1') %>%
+  select(-ADM_OR_DISCH)
+v2.overall.metrics <- read.csv('../model_performance/v2-0/CI_overall_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm',
+         TUNE_IDX == 1) %>%
+  mutate(VERSION = 'v2') %>%
+  select(-c(ADM_OR_DISCH,TUNE_IDX))
+v2.thresh.metrics <- read.csv('../model_performance/v2-0/CI_threshold_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm',
+         TUNE_IDX == 1) %>%
+  mutate(VERSION = 'v2') %>%
+  select(-c(ADM_OR_DISCH,TUNE_IDX))
+v3.overall.metrics <- read.csv('../model_performance/v3-0/CI_overall_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm',
+         TUNE_IDX == 1) %>%
+  mutate(VERSION = 'v3') %>%
+  select(-c(ADM_OR_DISCH,TUNE_IDX))
+v3.thresh.metrics <- read.csv('../model_performance/v3-0/CI_threshold_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm',
+         TUNE_IDX == 1) %>%
+  mutate(VERSION = 'v3') %>%
+  select(-c(ADM_OR_DISCH,TUNE_IDX))
+v4.overall.metrics <- read.csv('../model_performance/v4-0/CI_overall_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm',
+         TUNE_IDX == 1) %>%
+  mutate(VERSION = 'v4') %>%
+  select(-c(ADM_OR_DISCH,TUNE_IDX))
+v4.thresh.metrics <- read.csv('../model_performance/v4-0/CI_threshold_metrics.csv') %>%
+  filter(ADM_OR_DISCH == 'adm',
+         TUNE_IDX == 1) %>%
+  mutate(VERSION = 'v4') %>%
+  select(-c(ADM_OR_DISCH,TUNE_IDX))
+
+compiled.overall.metrics <- rbind(v1.overall.metrics,v2.overall.metrics,v3.overall.metrics,v4.overall.metrics)
+compiled.thresh.metrics <- rbind(v1.thresh.metrics,v2.thresh.metrics,v3.thresh.metrics,v4.thresh.metrics)
+
+### ORC
+orc.plot <- compiled.overall.metrics %>%
+  filter(METRIC == 'ORC') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=factor(VERSION)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=factor(VERSION)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7),ylim = c(0.6,.8)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7741341, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0.7573236, color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(yintercept = 0.7400537, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Ordinal c-index')+
+  xlab('Days from ICU admission')+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm"),
+    legend.position = 'bottom',
+    legend.title = element_text(color = "black", face = 'bold')
+  )
+
+### Entropy
+entropy.plot <- compiled.overall.metrics %>%
+  filter(METRIC == 'Entropy') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24) %>%
+  ggplot() +
+  geom_line(aes(x=Days,y=mean,color=factor(VERSION)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=Days,ymin = lo, ymax = hi,fill=factor(VERSION)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  #geom_vline(xintercept = 7, color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  ylab('Entropy')+
+  xlab('Days from ICU admission')+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm"),
+    legend.position = 'bottom',
+    legend.title = element_text(color = "black", face = 'bold')
+  )
+
+### Calibration slope
+baseline.calib.slope <- read.csv('../../ordinal_GOSE_prediction/model_performance/APM/CI_threshold_metrics.csv') %>%
+  filter(METRIC == 'Calib_Slope',
+         Threshold != 'Average',
+         MODEL == 'APM_DeepMN') %>%
+  rename(THRESHOLD=Threshold)
+
+calib.slopes <- compiled.thresh.metrics %>%
+  filter(METRIC == 'Calib_Slope',
+         THRESHOLD != 'Average') %>%
+  rowwise() %>%
+  mutate(Days = (WINDOW_IDX*2)/24)
+
+calib.slope.plot <- ggplot() +
+  geom_line(data =calib.slopes, aes(x=Days,y=mean,color=factor(VERSION)),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(data =calib.slopes, aes(x=Days,ymin = lo, ymax = hi,fill=factor(VERSION)),alpha=.2,size=.75/.pt,color=NA) + 
+  coord_cartesian(xlim=c(0,7),ylim=c(0,1.5)) + 
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0, .01)))+
+  geom_hline(data=baseline.calib.slope, aes(yintercept = hi), color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(data=baseline.calib.slope, aes(yintercept = mean), color='black',alpha = 1, size=1.3/.pt)+
+  geom_hline(data=baseline.calib.slope, aes(yintercept = lo), color='black',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 1, color='orange',alpha = 1, size=2/.pt)+
+  facet_wrap(~THRESHOLD,ncol = 2,scales = 'free')+
+  ylab('Calibration Slope')+
+  xlab('Days from ICU admission')+
+  guides(fill=guide_legend(title="Data resampling window"),
+         color=guide_legend(title="Data resampling window"))+
+  theme_bw()+
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 12, color = "black",face = 'bold'),
+    panel.border = element_rect(colour = "black", fill=NA, size = 1/.pt),
+    plot.margin=grid::unit(c(0,0,0,0), "mm"),
+    legend.position = 'bottom',
+    legend.title = element_text(color = "black", face = 'bold')
   )

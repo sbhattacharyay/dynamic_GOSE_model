@@ -70,14 +70,25 @@ class GOSE_model(pl.LightningModule):
             self.rnn_module = nn.GRU(input_size = latent_dim, hidden_size = hidden_dim, num_layers = rnn_layers)
         else:
             raise ValueError("Invalid RNN type. Must be 'LSTM' or 'GRU'")
-            
+        
         if self.output_activation == 'softmax': 
             self.hidden2gose = nn.Linear(hidden_dim,7)
         elif self.output_activation == 'sigmoid': 
             self.hidden2gose = nn.Linear(hidden_dim,6)
         else:
             raise ValueError("Invalid output layer type. Must be 'softmax' or 'sigmoid'")
-            
+        
+        # Initialize learned parameters
+        nn.init.xavier_uniform_(self.embedX.weight)
+        nn.init.xavier_uniform_(self.embedW.weight)
+        for name, param in self.rnn_module.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0.0)
+            elif 'weight' in name:
+                nn.init.xavier_uniform_(param)
+        nn.init.xavier_uniform_(self.hidden2gose.weight)
+        nn.init.constant_(self.hidden2gose.bias, 0.0)
+        
     def forward(self,idx_list, bin_offsets, gupi_offsets):
         
         embeddedX = self.embedX(idx_list)

@@ -50,75 +50,75 @@ cv.folds <- read.csv('../cross_validation_splits.csv')
 ### II. Prepare categorical CENTER-TBI predictors into tokens
 ## Load non-baseline categorical predictors
 # Load timestamp variables
-ct.imaging <- read.csv('../CENTER-TBI/formatted_predictors/categorical_ct_imaging.csv') %>%
+ct.imaging <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_ct_imaging.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-mr.imaging <- read.csv('../CENTER-TBI/formatted_predictors/categorical_mr_imaging.csv') %>%
+mr.imaging <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_mr_imaging.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-dh.values <- read.csv('../CENTER-TBI/formatted_predictors/categorical_daily_hourly.csv') %>%
+dh.values <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_hourly.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-daily.TIL <- read.csv('../CENTER-TBI/formatted_predictors/categorical_daily_TIL.csv') %>%
+daily.TIL <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_TIL.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-icp.catheter <- read.csv('../CENTER-TBI/formatted_predictors/categorical_icp_catheter.csv') %>%
+icp.catheter <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_icp_catheter.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-labs <- read.csv('../CENTER-TBI/formatted_predictors/categorical_labs.csv') %>%
+labs <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_labs.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-reintubation <- read.csv('../CENTER-TBI/formatted_predictors/categorical_reintubation.csv') %>%
+reintubation <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_reintubation.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
-remech.vent <- read.csv('../CENTER-TBI/formatted_predictors/categorical_remech_ventilation.csv') %>%
+remech.vent <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_remech_ventilation.csv') %>%
   mutate(Timestamp = as.POSIXct(Timestamp,tz = 'GMT'))
 
 # Load date-based, single-event variables
-daily.vitals <- read.csv('../CENTER-TBI/formatted_predictors/categorical_daily_vitals.csv') %>%
+daily.vitals <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_daily_vitals.csv') %>%
   mutate(DVDate = as.POSIXct(DVDate,tz = 'GMT'))
-toc <- read.csv('../CENTER-TBI/formatted_predictors/categorical_transitions_of_care.csv') %>%
+toc <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_transitions_of_care.csv') %>%
   mutate(DateEffectiveTransfer = as.POSIXct(DateEffectiveTransfer,tz = 'GMT'))
 
 # Load timestamped interval variables
-icp.monitoring <- read.csv('../CENTER-TBI/formatted_predictors/categorical_icp_monitoring.csv') %>%
+icp.monitoring <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_icp_monitoring.csv') %>%
   mutate(ICPInsTimestamp = as.POSIXct(ICPInsTimestamp,tz = 'GMT'),
          ICPRemTimestamp = as.POSIXct(ICPRemTimestamp,tz = 'GMT'))
-intubation <- read.csv('../CENTER-TBI/formatted_predictors/categorical_intubation.csv') %>%
+intubation <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_intubation.csv') %>%
   mutate(IntubationStartTimestamp = as.POSIXct(IntubationStartTimestamp,tz = 'GMT'),
          IntubationStopTimestamp = as.POSIXct(IntubationStopTimestamp,tz = 'GMT'))
-mech.vent <- read.csv('../CENTER-TBI/formatted_predictors/categorical_mech_ventilation.csv') %>%
+mech.vent <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_mech_ventilation.csv') %>%
   mutate(MechVentilationStartTimestamp = as.POSIXct(MechVentilationStartTimestamp,tz = 'GMT'),
          MechVentilationStopTimestamp = as.POSIXct(MechVentilationStopTimestamp,tz = 'GMT'))
-surgeries.cranial <- read.csv('../CENTER-TBI/formatted_predictors/categorical_surgeries_cranial.csv') %>%
+surgeries.cranial <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_surgeries_cranial.csv') %>%
   mutate(StartTimeStamp = as.POSIXct(StartTimeStamp,tz = 'GMT'),
          EndTimeStamp = as.POSIXct(EndTimeStamp,tz = 'GMT'))
-surgeries.extra.cranial <- read.csv('../CENTER-TBI/formatted_predictors/categorical_surgeries_extra_cranial.csv') %>%
+surgeries.extra.cranial <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_surgeries_extra_cranial.csv') %>%
   mutate(StartTimeStamp = as.POSIXct(StartTimeStamp,tz = 'GMT'),
          EndTimeStamp = as.POSIXct(EndTimeStamp,tz = 'GMT'))
 
 # Load dated interval variables
-dvt.mech <- read.csv('../CENTER-TBI/formatted_predictors/categorical_dvt_mech.csv') %>%
+dvt.mech <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_dvt_mech.csv') %>%
   mutate(DVTProphylaxisMechStartDate = as.POSIXct(DVTProphylaxisMechStartDate,tz = 'GMT'),
          DVTProphylaxisMechStopDate = as.POSIXct(DVTProphylaxisMechStopDate,tz = 'GMT'))
-dvt.pharm <- read.csv('../CENTER-TBI/formatted_predictors/categorical_dvt_pharm.csv') %>%
+dvt.pharm <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_dvt_pharm.csv') %>%
   mutate(DVTProphylaxisStartDate = as.POSIXct(DVTProphylaxisStartDate,tz = 'GMT'),
          DVTProphylaxisStopDate = as.POSIXct(DVTProphylaxisStopDate,tz = 'GMT'))
-enteral <- read.csv('../CENTER-TBI/formatted_predictors/categorical_enteral_nutrition.csv') %>%
+enteral <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_enteral_nutrition.csv') %>%
   mutate(EnteralNutritionStartDate = as.POSIXct(EnteralNutritionStartDate,tz = 'GMT'),
          EnteralNutritionStopDate = as.POSIXct(EnteralNutritionStopDate,tz = 'GMT'))
-parenteral <- read.csv('../CENTER-TBI/formatted_predictors/categorical_parenteral_nutrition.csv') %>%
+parenteral <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_parenteral_nutrition.csv') %>%
   mutate(ParenteralNutritionStartDate = as.POSIXct(ParenteralNutritionStartDate,tz = 'GMT'),
          ParenteralNutritionStopDate = as.POSIXct(ParenteralNutritionStopDate,tz = 'GMT'))
-meds <- read.csv('../CENTER-TBI/formatted_predictors/categorical_meds.csv') %>%
+meds <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_meds.csv') %>%
   mutate(StartDate = as.POSIXct(StartDate,tz = 'GMT'),
          StopDate = as.POSIXct(StopDate,tz = 'GMT'))
-nasogastric <- read.csv('../CENTER-TBI/formatted_predictors/categorical_nasogastric.csv') %>%
+nasogastric <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_nasogastric.csv') %>%
   mutate(NasogastricStartDate = as.POSIXct(NasogastricStartDate,tz = 'GMT'),
          NasogastricStopDate = as.POSIXct(NasogastricStopDate,tz = 'GMT'))
-oxy.admin <- read.csv('../CENTER-TBI/formatted_predictors/categorical_oxygen_administration.csv') %>%
+oxy.admin <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_oxygen_administration.csv') %>%
   mutate(OxygenAdmStartDate = as.POSIXct(OxygenAdmStartDate,tz = 'GMT'),
          OxygenAdmStopDate = as.POSIXct(OxygenAdmStopDate,tz = 'GMT'))
-peg.tube <- read.csv('../CENTER-TBI/formatted_predictors/categorical_peg_tube.csv') %>%
+peg.tube <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_peg_tube.csv') %>%
   mutate(PEGTubeStartDate = as.POSIXct(PEGTubeStartDate,tz = 'GMT'),
          PEGTubeStopDate = as.POSIXct(PEGTubeStopDate,tz = 'GMT'))
-tracheostomy <- read.csv('../CENTER-TBI/formatted_predictors/categorical_tracheostomy.csv') %>%
+tracheostomy <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_tracheostomy.csv') %>%
   mutate(TracheostomyStartDate = as.POSIXct(TracheostomyStartDate,tz = 'GMT'),
          TracheostomyStopDate = as.POSIXct(TracheostomyStopDate,tz = 'GMT'))
-urine.cath <- read.csv('../CENTER-TBI/formatted_predictors/categorical_urine_catheter.csv') %>%
+urine.cath <- read.csv('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors/categorical_urine_catheter.csv') %>%
   mutate(UrineCathStartDate = as.POSIXct(UrineCathStartDate,tz = 'GMT'),
          UrineCathStopDate = as.POSIXct(UrineCathStopDate,tz = 'GMT'))
 
@@ -126,7 +126,7 @@ urine.cath <- read.csv('../CENTER-TBI/formatted_predictors/categorical_urine_cat
 foreach(curr.GUPI = study.GUPIs,.inorder = F) %dopar%{
   
   # Load baseline categorical predictors of current GUPI
-  curr.baseline.categorical.predictors <- read.csv(file.path('../CENTER-TBI/formatted_predictors',curr.GUPI,'categorical_baseline_predictors.csv'))
+  curr.baseline.categorical.predictors <- read.csv(file.path('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'categorical_baseline_predictors.csv'))
   curr.baseline.categorical.predictors <- curr.baseline.categorical.predictors$Token[1]
   
   # Create token dataframes for both from-admission indexing and from-discharge indexing
@@ -305,10 +305,10 @@ foreach(curr.GUPI = study.GUPIs,.inorder = F) %dopar%{
   
   # Save formatted categorical tokens into patient-specific directory
   write.csv(curr.from.adm.tokens,
-            file.path('../CENTER-TBI/formatted_predictors',curr.GUPI,'from_admission_categorical_tokens.csv'),
+            file.path('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'from_admission_categorical_abs_tokens.csv'),
             row.names = F)
   
   write.csv(curr.from.disch.tokens,
-            file.path('../CENTER-TBI/formatted_predictors',curr.GUPI,'from_discharge_categorical_tokens.csv'),
+            file.path('/home/sb2406/rds/hpc-work/CENTER-TBI/formatted_predictors',curr.GUPI,'from_discharge_categorical_abs_tokens.csv'),
             row.names = F)
 }

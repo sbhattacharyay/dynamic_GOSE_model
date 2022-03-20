@@ -79,8 +79,10 @@ class GOSE_model(pl.LightningModule):
             raise ValueError("Invalid output layer type. Must be 'softmax' or 'sigmoid'")
         
         # Initialize learned parameters
-        nn.init.xavier_uniform_(self.embedX.weight)
-        nn.init.xavier_uniform_(self.embedW.weight)
+        nn.init.constant_(self.embedX.weight[0,:], 0.0)
+        nn.init.constant_(self.embedW.weight[0,:], 0.0)
+        nn.init.xavier_uniform_(self.embedX.weight[1:,:])
+        nn.init.xavier_uniform_(self.embedW.weight[1:,:])
         for name, param in self.rnn_module.named_parameters():
             if 'bias' in name:
                 nn.init.constant_(param, 0.0)

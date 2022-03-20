@@ -164,8 +164,19 @@ folds <- unique(cv.folds$fold)
 # Print initialization statement of current partition
 print(paste('Repeat',curr.repeat,'Fold',curr.fold,'initalized'))
 
-curr.train.GUPIs <- cv.folds$GUPI[(cv.folds$repeat. == curr.repeat) & (cv.folds$fold == curr.fold) & (cv.folds$test_or_train == 'train')]
-curr.test.GUPIs <- cv.folds$GUPI[(cv.folds$repeat. == curr.repeat) & (cv.folds$fold == curr.fold) & (cv.folds$test_or_train == 'test')]
+curr.partition <- cv.folds %>%
+  filter(repeat. == curr.repeat,
+         fold == curr.fold)
+
+curr.train.GUPIs <- curr.partition %>%
+  filter(set == 'train') %>%
+  .$GUPI
+curr.val.GUPIs <- curr.partition %>%
+  filter(set == 'val') %>%
+  .$GUPI
+curr.test.GUPIs <- curr.partition %>%
+  filter(set == 'test') %>%
+  .$GUPI
 
 # Define number of qunatile cuts
 NUM.CUTS = 20
@@ -285,6 +296,12 @@ tf.surgeries.cranial <- tf_variables(surgeries.cranial,build_recipe(surgeries.cr
   mutate(StartTimeStamp = as.POSIXct(StartTimeStamp,tz = 'GMT'),
          EndTimeStamp = as.POSIXct(EndTimeStamp,tz = 'GMT'))
 
+# Train cuts for discretization of time of day
+time.of.day.binned <- discretize(seq(1,86400,length.out = 10000),cuts = NUM.CUTS, prefix = 'TimeOfDay_BIN')
+
+# Train cuts for discretization of time from admission
+time.from.adm.binned <- discretize(seq(0,7,length.out = 10000),cuts = NUM.CUTS, prefix = 'TimeFromAdm_BIN')
+
 # Iterate through patients in parallel
 for (curr.GUPI in study.GUPIs){
   
@@ -302,7 +319,7 @@ for (curr.GUPI in study.GUPIs){
       select(-c(BaselineToken)) %>%
       mutate(RPQToken = 'BaselineRPQ_NA',
              GOATToken = 'BaselineGOAT_NA')
-      
+    
     # Append tokens of time-sensitive baseline indicators
     if (curr.GUPI %in% tf.rpq.outcomes$GUPI){
       rpq.indices <- which(date(curr.from.adm.tokens$TimeStampEnd) >= date(tf.rpq.outcomes$BaselineRPQDate[tf.rpq.outcomes$GUPI == curr.GUPI]))
@@ -313,39 +330,6 @@ for (curr.GUPI in study.GUPIs){
       goat.indices <- which(date(curr.from.adm.tokens$TimeStampEnd) >= date(tf.goat.outcomes$BaselineGOATDate[tf.goat.outcomes$GUPI == curr.GUPI]))
       curr.from.adm.tokens$GOATToken[goat.indices] <- tf.goat.outcomes$TokenStub[tf.goat.outcomes$GUPI == curr.GUPI]
     }
-    
-    curr.from.adm.tokens <- curr.from.adm.tokens %>%
-      mutate(Token = paste(Token,RPQToken,GOATToken)) %>%
-      select(-c(RPQToken,GOATToken))
-    
-    # Add timestamped single events from admission
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.biomarkers,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.central.haemostasis,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.ct.imaging,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.dh.values,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.daily.TIL,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.labs,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.mr.imaging,curr.GUPI)
-
-    # Add dated single events from admission
-    curr.from.adm.tokens <- add.date.event.tokens(curr.from.adm.tokens,tf.daily.vitals %>% rename(Date = DVDate),curr.GUPI)
-
-    # Add timestamped interval variables from admission
-    curr.from.adm.tokens <- add.timestamp.interval.tokens(curr.from.adm.tokens,
-                                                          tf.surgeries.cranial %>% rename(StartTimestamp = StartTimeStamp, StopTimestamp = EndTimeStamp),
-                                                          c(''),
-                                                          curr.GUPI)
-    
-    # Ensure all tokens are unique per study window
-    curr.from.adm.tokens <- curr.from.adm.tokens %>%
-      rowwise() %>%
-      mutate(Token = paste(unique(unlist(strsplit(Token,split =' '))),collapse = ' '))
-
-    # Save formatted tokens of the current patient
-    write.csv(curr.from.adm.tokens,
-              file.path(fold.dir,paste0('from_adm_GUPI_',curr.GUPI,'_strategy_',curr.strategy,'.csv')),
-              row.names = F)
-      
   } else if (curr.strategy == 'diff'){
     
     # Load categorical tokens of current GUPI and append time of day and baseline indicators 
@@ -371,38 +355,73 @@ for (curr.GUPI in study.GUPIs){
       goat.indices <- which(date(curr.from.adm.tokens$TimeStampEnd) >= date(tf.goat.outcomes$BaselineGOATDate[tf.goat.outcomes$GUPI == curr.GUPI]))
       curr.from.adm.tokens$GOATToken[goat.indices] <- tf.goat.outcomes$TokenStub[tf.goat.outcomes$GUPI == curr.GUPI]
     }
-    
+  }
+  
+  curr.from.adm.tokens <- curr.from.adm.tokens %>%
+    mutate(Token = paste(Token,RPQToken,GOATToken)) %>%
+    select(-c(RPQToken,GOATToken))
+  
+  # Add timestamped single events from admission
+  curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.biomarkers,curr.GUPI)
+  curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.central.haemostasis,curr.GUPI)
+  curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.ct.imaging,curr.GUPI)
+  curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.dh.values,curr.GUPI)
+  curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.daily.TIL,curr.GUPI)
+  curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.labs,curr.GUPI)
+  curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.mr.imaging,curr.GUPI)
+  
+  # Add dated single events from admission
+  curr.from.adm.tokens <- add.date.event.tokens(curr.from.adm.tokens,tf.daily.vitals %>% rename(Date = DVDate),curr.GUPI)
+  
+  # Add timestamped interval variables from admission
+  curr.from.adm.tokens <- add.timestamp.interval.tokens(curr.from.adm.tokens,
+                                                        tf.surgeries.cranial %>% rename(StartTimestamp = StartTimeStamp, StopTimestamp = EndTimeStamp),
+                                                        c(''),
+                                                        curr.GUPI)
+  
+  # Tokenise time of day and time from admission
+  curr.time.tokens <- curr.from.adm.tokens %>%
+    select(GUPI,TimeStampStart,TimeStampEnd,WindowIdx) %>%
+    mutate(endHour = hour(TimeStampEnd),
+           endMin = minute(TimeStampEnd),
+           endSec = second(TimeStampEnd)) %>%
+    mutate(TimeOfDay = endHour*3600 + endMin*60 + endSec) %>%
+    select(-c(endHour,endMin,endSec)) %>%
+    mutate(TimeOfDay = predict(time.of.day.binned, TimeOfDay)) %>%
+    mutate(TimeFromAdm = (WindowIdx*2)/24) %>%
+    mutate(TimeFromAdm = predict(time.from.adm.binned, TimeFromAdm))
+  
+  if (curr.strategy == 'abs'){  
+    # Ensure all tokens are unique per study window
     curr.from.adm.tokens <- curr.from.adm.tokens %>%
-      mutate(Token = paste(Token,RPQToken,GOATToken)) %>%
-      select(-c(RPQToken,GOATToken))
-      
-    # Add timestamped single events from admission
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.biomarkers,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.central.haemostasis,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.ct.imaging,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.dh.values,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.daily.TIL,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.labs,curr.GUPI)
-    curr.from.adm.tokens <- add.timestamp.event.tokens(curr.from.adm.tokens,tf.mr.imaging,curr.GUPI)
-    
-    # Add dated single events from admission
-    curr.from.adm.tokens <- add.date.event.tokens(curr.from.adm.tokens,tf.daily.vitals %>% rename(Date = DVDate),curr.GUPI)
-
-    # Add timestamped interval variables from admission
-    curr.from.adm.tokens <- add.timestamp.interval.tokens(curr.from.adm.tokens,
-                                                          tf.surgeries.cranial %>% rename(StartTimestamp = StartTimeStamp, StopTimestamp = EndTimeStamp),
-                                                          c(''),
-                                                          curr.GUPI)  
-    
+      rowwise() %>%
+      mutate(Token = paste(unique(unlist(strsplit(Token,split =' '))),collapse = ' '))
+  } else if (curr.strategy == 'diff'){
     # Ensure all tokens are unique per study window
     curr.from.adm.tokens <- curr.from.adm.tokens %>%
       rowwise() %>%
       mutate(Token = str_trim(paste(unique(unlist(strsplit(Token,split =' '))),collapse = ' '))) %>%
       differentiate.tokens(adm.or.disch = 'adm')
     
-    # Save formatted tokens of the current patient
-    write.csv(curr.from.adm.tokens,
-              file.path(fold.dir,paste0('from_adm_GUPI_',curr.GUPI,'_strategy_',curr.strategy,'.csv')),
-              row.names = F)
+    # Differentiate time of day and time from admission tokens for `diff` strategy
+    curr.time.tokens <- curr.time.tokens %>%
+      mutate(TimeOfDay = as.character(TimeOfDay),
+             TimeFromAdm = as.character(TimeFromAdm)) %>%
+      rename(Token = TimeFromAdm) %>%
+      differentiate.tokens(adm.or.disch = 'adm') %>%
+      rename(TimeFromAdm = Token) %>%
+      rename(Token = TimeOfDay) %>%
+      differentiate.tokens(adm.or.disch = 'adm') %>%
+      rename(TimeOfDay = Token)
   }
+  
+  # Save formatted tokens of the current patient
+  write.csv(curr.from.adm.tokens,
+            file.path(fold.dir,paste0('from_adm_GUPI_',curr.GUPI,'_strategy_',curr.strategy,'.csv')),
+            row.names = F)
+  
+  # Save formatted time tokens of the current patient
+  write.csv(curr.time.tokens,
+            file.path(fold.dir,paste0('time_tokens_GUPI_',curr.GUPI,'_strategy_',curr.strategy,'.csv')),
+            row.names = F)
 }

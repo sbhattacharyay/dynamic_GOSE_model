@@ -51,8 +51,7 @@ tokenisation_combos <- cv.folds %>%
   rename(REPEAT = repeat., FOLD = fold) %>%
   mutate(key = 1) %>%
   full_join(tokenisation.strategy,by='key') %>%
-  select(-key) %>%
-  filter(STRATEGY == 'abs')
+  select(-key)
 curr.repeat <- tokenisation_combos$REPEAT[array_task_id]
 curr.fold <- tokenisation_combos$FOLD[array_task_id]
 curr.strategy <- tokenisation_combos$STRATEGY[array_task_id]

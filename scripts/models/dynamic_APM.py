@@ -34,7 +34,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score, roc_auc_score
 
 # Define dynamic GOSE prediction model
 class GOSE_model(pl.LightningModule):
-    def __init__(self,n_tokens,latent_dim,embed_dropout,rnn_type,hidden_dim,rnn_layers,output_activation,learning_rate,class_weights,targets):
+    def __init__(self,n_tokens,latent_dim,embed_dropout,rnn_type,hidden_dim,rnn_layers,output_activation,learning_rate,class_weights,targets,mask_indices):
         """
         Args:
             n_tokens (int): Size of vocabulary
@@ -47,6 +47,7 @@ class GOSE_model(pl.LightningModule):
             learning_rate (float): Learning rate for ADAM optimizer
             class_weights (boolean): identifies whether loss should be weighted against class frequency
             targets (NumPy array): if class_weights == True, provides the class labels of the training set
+            mask_indices (list): Provides indices to mask out from the embedding layer
         """
         super(GOSE_model, self).__init__()
         
@@ -59,6 +60,8 @@ class GOSE_model(pl.LightningModule):
         self.learning_rate = learning_rate
         self.class_weights = class_weights
         self.targets = targets
+        self.mask_indices = mask_indices
+        self.mask_indices.sort()
         
         self.embedX = nn.Embedding(n_tokens, latent_dim)
         self.embedW = nn.Embedding(n_tokens, 1)
@@ -78,11 +81,21 @@ class GOSE_model(pl.LightningModule):
         else:
             raise ValueError("Invalid output layer type. Must be 'softmax' or 'sigmoid'")
         
-        # Initialize learned parameters
-        nn.init.constant_(self.embedX.weight[0,:], 0.0)
-        nn.init.constant_(self.embedW.weight[0,:], 0.0)
-        nn.init.xavier_uniform_(self.embedX.weight[1:,:])
-        nn.init.xavier_uniform_(self.embedW.weight[1:,:])
+        ## Initialize learned parameters
+        # First mask out all chosen embedding indices
+        embedX_weight = torch.zeros(self.n_tokens, self.latent_dim)
+        nn.init.xavier_uniform_(embedX_weight)
+        
+        embedW_weight = torch.zeros(self.n_tokens, 1)
+        nn.init.xavier_uniform_(embedW_weight)
+                
+        if len(self.mask_indices) > 0:
+            embedX_weight[self.mask_indices,:] = 0.0
+            embedW_weight[self.mask_indices,:] = 0.0
+            
+        self.embedX.weight = nn.Parameter(embedX_weight)
+        self.embedW.weight = nn.Parameter(embedW_weight)
+        
         for name, param in self.rnn_module.named_parameters():
             if 'bias' in name:
                 nn.init.constant_(param, 0.0)
@@ -273,7 +286,18 @@ class GOSE_model(pl.LightningModule):
         return val_loss
         
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(),lr=self.learning_rate)
+        
+        decay, no_decay = [], []
+        for name, param in self.named_parameters():
+            if not param.requires_grad: 
+                continue # frozen weights
+            if (len(param.shape) == 1) or (".bias" in name): 
+                no_decay.append(param)
+            else:
+                decay.append(param)
+        params = [{'params': no_decay, 'weight_decay': 0.}, {'params': decay, 'weight_decay': (10**(-3.5))}]
+        
+        optimizer = optim.Adam(params,lr=self.learning_rate)
         return optimizer
     
 # dynamic GOSE prediction model modification for SHAP calculation

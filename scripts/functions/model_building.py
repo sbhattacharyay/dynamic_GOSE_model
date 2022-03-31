@@ -230,3 +230,63 @@ def format_shap(shap_matrix,idx,token_labels,testing_set):
         curr_pt_shap_df['label'] = idx
         shap_df.append(curr_pt_shap_df)
     return pd.concat(shap_df,ignore_index=True)
+
+def format_time_tokens(token_df,time_choice,train):
+    
+    # Extract indices pertaining to TFA and TOD tokens
+    tfa_indices = token_df.VocabTimeFromAdmIndex.explode()
+    tfa_indices = tfa_indices[tfa_indices != 0].astype(int).unique().tolist()
+
+    tod_indices = token_df.VocabTimeOfDayIndex.explode()
+    tod_indices = tod_indices[tod_indices != 0].astype(int).unique().tolist()
+    
+    if time_choice == 'None':
+        
+        token_df = token_df.drop(columns=['VocabTimeFromAdmIndex','VocabTimeOfDayIndex']).sort_values(by=['GUPI','WindowIdx'],ignore_index=True)
+        mask_indices = tfa_indices + tod_indices
+        
+    elif time_choice == 'TFA_only':
+        
+        tfa_logicals = [idx_lst != [0] for idx_lst in token_df['VocabTimeFromAdmIndex']]
+        token_df['VocabIndex'][tfa_logicals] = (token_df['VocabIndex'][tfa_logicals] + token_df['VocabTimeFromAdmIndex'][tfa_logicals])
+        # If training set, clean 0 indices from VocabIndex w/ length more than 1
+        if train:
+            fix_logicals = [(len(idx_lst) > 1) & (0 in idx_lst) for idx_lst in token_df['VocabIndex']]
+            token_df['VocabIndex'][fix_logicals] = token_df['VocabIndex'][fix_logicals].apply(lambda x: [i for i in x if i != 0])
+        token_df = token_df.drop(columns=['VocabTimeFromAdmIndex','VocabTimeOfDayIndex']).sort_values(by=['GUPI','WindowIdx'],ignore_index=True)
+        mask_indices = tod_indices
+
+    elif time_choice == 'TOD_only':
+        
+        tod_logicals = [idx_lst != [0] for idx_lst in token_df['VocabTimeOfDayIndex']]
+        token_df['VocabIndex'][tod_logicals] = (token_df['VocabIndex'][tod_logicals] + token_df['VocabTimeOfDayIndex'][tod_logicals])
+        # If training set, clean 0 indices from VocabIndex w/ length more than 1
+        if train:
+            fix_logicals = [(len(idx_lst) > 1) & (0 in idx_lst) for idx_lst in token_df['VocabIndex']]
+            token_df['VocabIndex'][fix_logicals] = token_df['VocabIndex'][fix_logicals].apply(lambda x: [i for i in x if i != 0])
+        token_df = token_df.drop(columns=['VocabTimeFromAdmIndex','VocabTimeOfDayIndex']).sort_values(by=['GUPI','WindowIdx'],ignore_index=True)        
+        mask_indices = tfa_indices
+        
+    elif time_choice == 'Both':
+        
+        tfa_logicals = [idx_lst != [0] for idx_lst in token_df['VocabTimeFromAdmIndex']]
+        token_df['VocabIndex'][tfa_logicals] = (token_df['VocabIndex'][tfa_logicals] + token_df['VocabTimeFromAdmIndex'][tfa_logicals])
+        tod_logicals = [idx_lst != [0] for idx_lst in token_df['VocabTimeOfDayIndex']]
+        token_df['VocabIndex'][tod_logicals] = (token_df['VocabIndex'][tod_logicals] + token_df['VocabTimeOfDayIndex'][tod_logicals])
+        # If training set, clean 0 indices from VocabIndex w/ length more than 1
+        if train:
+            fix_logicals = [(len(idx_lst) > 1) & (0 in idx_lst) for idx_lst in token_df['VocabIndex']]
+            token_df['VocabIndex'][fix_logicals] = token_df['VocabIndex'][fix_logicals].apply(lambda x: [i for i in x if i != 0])
+        token_df = token_df.drop(columns=['VocabTimeFromAdmIndex','VocabTimeOfDayIndex']).sort_values(by=['GUPI','WindowIdx'],ignore_index=True)        
+        mask_indices = []
+        
+    return token_df, mask_indices
+
+def T_scaling(logits, args):
+    temperature = args.get('temperature', None)
+    return torch.div(logits, temperature)
+
+def vector_scaling(logits, args):
+    curr_vector = args.get('vector', None)
+    curr_biases = args.get('biases', None)
+    return (torch.matmul(logits,torch.diag_embed(curr_vector.squeeze(1))) + curr_biases.squeeze(1))

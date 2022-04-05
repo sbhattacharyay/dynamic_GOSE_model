@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=val_set_performances
 #SBATCH --time=01:00:00
-#SBATCH --array=0-764
+#SBATCH --array=0-954
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --account=MENON-SL2-CPU

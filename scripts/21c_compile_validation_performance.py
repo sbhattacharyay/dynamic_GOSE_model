@@ -100,7 +100,7 @@ diff_ECE = overall_ECE[overall_ECE.STRATEGY == 'diff'].reset_index(drop=True)
 
 # Based on inspection of overall discrimination, identify top ABS and DIFF tuning indices
 top_abs = 135
-top_diff = 55
+top_diff = 69
 
 # Load raw predictions for top ABS and DIFF strategy models
 val_grid = pd.read_pickle(os.path.join(model_dir,'val_performance_grid.pkl'))

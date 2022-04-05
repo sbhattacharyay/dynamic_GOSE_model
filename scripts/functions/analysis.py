@@ -64,6 +64,20 @@ def calc_ORC(prob_matrix,true_labels,prob_cols):
         aucs.append(roc_auc_score(filt_prob_matrix['ConditLabel'],filt_prob_matrix['ConditProb']))
     return np.mean(aucs)
 
+# Function to calculate Somers D
+def calc_Somers_D(prob_matrix,true_labels,prob_cols):
+    prob_matrix['TrueLabel'] = true_labels
+    aucs = []
+    prevalence = []
+    for ix, (a, b) in enumerate(itertools.combinations(np.sort(true_labels.unique()), 2)):
+        filt_prob_matrix = prob_matrix[prob_matrix.TrueLabel.isin([a,b])].reset_index(drop=True)
+        filt_prob_matrix['ConditProb'] = filt_prob_matrix[prob_cols[b]]/(filt_prob_matrix[prob_cols[a]] + filt_prob_matrix[prob_cols[b]])
+        filt_prob_matrix['ConditProb'] = np.nan_to_num(filt_prob_matrix['ConditProb'],nan=.5,posinf=1,neginf=0)
+        filt_prob_matrix['ConditLabel'] = (filt_prob_matrix.TrueLabel == b).astype(int)
+        prevalence.append((filt_prob_matrix.TrueLabel == a).sum()*(filt_prob_matrix.TrueLabel == b).sum())
+        aucs.append(roc_auc_score(filt_prob_matrix['ConditLabel'],filt_prob_matrix['ConditProb']))
+    return 2*(np.sum(np.multiply(aucs,prevalence))/np.sum(prevalence))-1
+
 # Function to calculate ECE
 def calc_ECE(preds):
     prob_cols = [col for col in preds if col.startswith('Pr(GOSE=')]

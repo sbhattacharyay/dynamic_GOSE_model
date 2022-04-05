@@ -80,23 +80,23 @@ os.makedirs(calibration_dir,exist_ok=True)
 # Load cross-validation split information
 cv_splits = pd.read_csv('../cross_validation_splits.csv')
 
-# Isolate partitions of first repeat
-cv_splits = cv_splits[cv_splits.repeat == 1].reset_index(drop=True)
-
 ### II. Create grid of calibration combinations
 # If bootstrapping resamples don't exist, create them
 if not os.path.exists(os.path.join(calibration_dir,'calibration_grid.csv')):
 
     # Create parameters for training differential token models
-    calibration_parameters = {'TUNE_IDX':[135,55],
+    calibration_parameters = {'TUNE_IDX':[135,69],
                               'SCALING':['T','vector'],
                               'OPTIMIZATION':['nominal','ordinal'],
                               'WINDOW_IDX':list(range(1,85)),
-                              'REPEAT':[1],
+                              'REPEAT':list(range(1,21)),
                               'FOLD':list(range(1,6))}
     
     # Convert parameter dictionary to dataframe
-    calibration_grid = pd.DataFrame([row for row in itertools.product(*calibration_parameters.values())],columns=calibration_parameters.keys()).sort_values(by=['TUNE_IDX','SCALING','OPTIMIZATION','FOLD','WINDOW_IDX'],ignore_index=True)
+    calibration_grid = pd.DataFrame([row for row in itertools.product(*calibration_parameters.values())],columns=calibration_parameters.keys()).sort_values(by=['TUNE_IDX','SCALING','OPTIMIZATION','REPEAT','FOLD','WINDOW_IDX'],ignore_index=True)
+    
+    # Remove implausible rows
+    calibration_grid = calibration_grid[(calibration_grid.TUNE_IDX != 69)|(calibration_grid.REPEAT==1)].reset_index(drop=True)
     
     # Save calibration grid to model directory
     calibration_grid.to_csv(os.path.join(calibration_dir,'calibration_grid.csv'),index=False)
@@ -104,7 +104,6 @@ if not os.path.exists(os.path.join(calibration_dir,'calibration_grid.csv')):
 else:
     # Load calibration grid
     calibration_grid = pd.read_csv(os.path.join(calibration_dir,'calibration_grid.csv'))
-    calibration_grid = calibration_grid[calibration_grid.OPTIMIZATION == 'ordinal'].reset_index(drop=True)
     
 ### III. Calibrate APM_deep model based on provided hyperparameter row index
 # Argument-induced training functions
@@ -117,6 +116,9 @@ def main(array_task_id):
     curr_window_idx = calibration_grid.WINDOW_IDX[array_task_id]
     curr_repeat = calibration_grid.REPEAT[array_task_id]
     curr_fold = calibration_grid.FOLD[array_task_id]
+    
+    # Define current tune directory
+    tune_dir = os.path.join(model_dir,'repeat'+str(curr_repeat).zfill(2),'fold'+str(curr_fold).zfill(int(np.log10(calibration_grid.FOLD.max()))+1),'tune'+str(curr_tune_idx).zfill(4))
     
     # Load uncalibrated validation set of current combination
     uncalib_val_preds = pd.read_csv(os.path.join(model_dir,'repeat'+str(curr_repeat).zfill(2),'fold'+str(curr_fold),'tune'+str(curr_tune_idx).zfill(4),'uncalibrated_val_predictions.csv'))
@@ -156,6 +158,8 @@ def main(array_task_id):
         scale_object.set_temperature(curr_optimization)
         with torch.no_grad():
             opt_temperature = scale_object.temperature.detach().item()
+        if opt_temperature != opt_temperature:
+            opt_temperature = 1    
         calib_val_logits = torch.tensor((uncalib_val_preds[logit_cols] / opt_temperature).values,dtype=torch.float32)
         calib_val_probs = F.softmax(calib_val_logits)
         calib_test_logits = torch.tensor((uncalib_test_preds[logit_cols] / opt_temperature).values,dtype=torch.float32)
@@ -179,6 +183,11 @@ def main(array_task_id):
     calib_val_preds = pd.DataFrame(torch.cat([calib_val_logits,calib_val_probs],1).numpy(),columns=logit_cols+prob_cols)
     calib_val_preds.insert(loc=0, column='GUPI', value=uncalib_val_preds['GUPI'])
     calib_val_preds['TrueLabel'] = uncalib_val_preds['TrueLabel']
+    calib_val_preds['TUNE_IDX'] = curr_tune_idx
+    calib_val_preds['WindowIdx'] = curr_window_idx
+    calib_val_preds['REPEAT'] = curr_repeat
+    calib_val_preds['FOLD'] = curr_fold
+    calib_val_preds.to_pickle(os.path.join(tune_dir,'set_val_opt_'+curr_optimization+'_window_idx_'+str(curr_window_idx).zfill(2)+'_scaling_'+curr_scaling+'.pkl'))
     
     #
     post_cal_val_ECE = calc_ECE(calib_val_preds)
@@ -188,7 +197,12 @@ def main(array_task_id):
     calib_test_preds = pd.DataFrame(torch.cat([calib_test_logits,calib_test_probs],1).numpy(),columns=logit_cols+prob_cols)
     calib_test_preds.insert(loc=0, column='GUPI', value=uncalib_test_preds['GUPI'])
     calib_test_preds['TrueLabel'] = uncalib_test_preds['TrueLabel']
-    
+    calib_test_preds['TUNE_IDX'] = curr_tune_idx
+    calib_test_preds['WindowIdx'] = curr_window_idx
+    calib_test_preds['REPEAT'] = curr_repeat
+    calib_test_preds['FOLD'] = curr_fold
+    calib_test_preds.to_pickle(os.path.join(tune_dir,'set_test_opt_'+curr_optimization+'_window_idx_'+str(curr_window_idx).zfill(2)+'_scaling_'+curr_scaling+'.pkl'))
+
     #
     post_cal_test_ECE = calc_ECE(calib_test_preds)
     post_cal_test_MCE = calc_MCE(calib_test_preds)
@@ -239,5 +253,5 @@ def main(array_task_id):
     
 if __name__ == '__main__':
     
-    array_task_id = int(sys.argv[1])    
+    array_task_id = int(sys.argv[1]) + 30000    
     main(array_task_id)

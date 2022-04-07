@@ -44,13 +44,20 @@ from tqdm import tqdm
 # Function to load and compile test performance metrics for DeepIMPACT models
 def collect_metrics(metric_file_info,progress_bar = True, progress_bar_desc = ''):
     output_df = []
-    
     if progress_bar:
         iterator = tqdm(metric_file_info.file,desc=progress_bar_desc)
     else:
         iterator = metric_file_info.file
-    
     return pd.concat([pd.read_csv(f) for f in iterator],ignore_index=True)
+
+# Function to load and compile test calibration curves for DeepIMPACT models
+def collect_calib_curves(curve_file_info,progress_bar = True, progress_bar_desc = ''):
+    output_df = []
+    if progress_bar:
+        iterator = tqdm(curve_file_info.file,desc=progress_bar_desc)
+    else:
+        iterator = curve_file_info.file
+    return pd.concat([pd.read_pickle(f) for f in iterator],ignore_index=True)
 
 # Function to calculate ORC
 def calc_ORC(prob_matrix,true_labels,prob_cols):

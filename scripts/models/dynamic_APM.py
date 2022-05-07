@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import glob
+import copy
 import random
 import datetime
 import warnings
@@ -358,3 +359,77 @@ class shap_GOSE_model(nn.Module):
             return F.softmax(gose_out,dim=1)
         else:
             return gose_out
+
+# Function to extract learned embedding layer and convert embedding index matrix to embedded matrix
+def derive_embedded_vector(gose_model,unknown_index,cols_to_add,multihot_matrix):
+    """
+    Args:
+        gose_model (LightningModule): trained dynAPM model from which to extract prediction layers
+        unknown_index (int): Embedding layer index corresponding to '<unk>' token
+        cols_to_add (int): Number of rows to add to embedding layer to account for unknown indices
+        multihot_matrix (torch.Tensor)
+    """
+    # Extract trained initial embedding layer and modify for LBM calculation 
+    embedX = copy.deepcopy(gose_model).embedX
+    embedX.weight = nn.Parameter(torch.cat((embedX.weight,torch.tile(embedX.weight[unknown_index,:],(cols_to_add,1))),dim=0),requires_grad=False)
+
+    # Extract trained weighting embedding layer and modify for LBM calculation 
+    embedW = copy.deepcopy(gose_model).embedW
+    embedW.weight = nn.Parameter(torch.cat((embedW.weight,torch.tile(embedW.weight[unknown_index,:],(cols_to_add,1))),dim=0),requires_grad=False)
+    
+    # Combine 2 embedding layers into single transformation matrix
+    comb_embedding = embedX.weight*torch.tile(torch.exp(embedW.weight),(1,embedX.weight.shape[1]))
+    
+    # Calculate number of tokens per row and fix zero-token rows to one
+    row_sums = multihot_matrix.sum(1)
+    row_sums[row_sums == 0] = 1
+    
+    # Embed input and divide by row sums
+    curr_embedding_out = F.relu(torch.matmul(multihot_matrix,comb_embedding) / torch.tile(row_sums.unsqueeze(1),(1,comb_embedding.shape[1])))
+    
+    # Return embedded output
+    return curr_embedding_out
+
+# dynamic GOSE prediction model modification for TimeSHAP calculation
+class timeshap_GOSE_model(nn.Module):
+    def __init__(self,gose_model,threshold_idx):
+        """
+        Args:
+            gose_model (LightningModule): trained dynAPM model from which to extract prediction layers
+            threshold_idx (int): index of the GOSE threshold to focus on for TimeSHAP
+        """
+        super(timeshap_GOSE_model, self).__init__()
+
+        # Extract trained RNN module and modify for LBM calculation
+        self.rnn_module = copy.deepcopy(gose_model).rnn_module
+        self.rnn_module.batch_first=True
+        
+        # Extract trained output layer and modify for LBM calculation
+        self.hidden2gose = copy.deepcopy(gose_model).hidden2gose
+        
+        # Save threshold idx of focus
+        self.threshold_idx = threshold_idx
+        
+    # Define forward run function
+    def forward(self,
+                x: torch.Tensor,
+                hidden_states: tuple = None,
+               ):
+        
+        print(x.shape)
+        
+        # Obtain RNN output and transform to GOSE space
+        if hidden_states is None:
+            curr_rnn_out, curr_rnn_hidden = self.rnn_module(x)
+        else:
+            curr_rnn_out, curr_rnn_hidden = self.rnn_module(x, hidden_states)
+            
+        # -1 on hidden, to select the last layer of the stacked gru
+        assert torch.equal(curr_rnn_out[:,-1,:], curr_rnn_hidden[-1, :, :])
+        
+        # Calculate output values for TimeSHAP
+        curr_gose_out = self.hidden2gose(curr_rnn_hidden[-1, :, :])
+        curr_gose_out = F.softmax(curr_gose_out).cumsum(1)[:,self.threshold_idx]
+        
+        # Return output value of focus and RNN hidden state
+        return curr_gose_out, curr_rnn_hidden

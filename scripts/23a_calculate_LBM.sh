@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=LBM_p1
-#SBATCH --time=10:00:00
-#SBATCH --array=0-9999
+#SBATCH --job-name=LBM
+#SBATCH --time=24:00:00
+#SBATCH --array=0-9299
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --account=MENON-SL2-CPU
 #SBATCH --partition=icelake
 #SBATCH --mail-type=ALL
-#SBATCH --output=./hpc_logs/feature_importance/LBM_p1_trial_%a.out
+#SBATCH --output=./hpc_logs/feature_importance/LBM_trial_%a.out
 #SBATCH --mail-user=sb2406@cam.ac.uk
 
 . /etc/profile.d/modules.sh                # Leave this line (enables the module command)

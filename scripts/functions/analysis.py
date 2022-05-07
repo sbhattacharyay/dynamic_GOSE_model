@@ -141,3 +141,20 @@ def calc_thresh_calibration(preds):
         
     calib_metrics = pd.concat(calib_metrics,ignore_index = True).reset_index(drop=True)
     return calib_metrics
+
+# Function to collect LBM values
+def collect_LBM(LBM_file_info,progress_bar = True, progress_bar_desc = ''):
+    output_df = []
+    if progress_bar:
+        iterator = tqdm(range(LBM_file_info.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(LBM_file_info.shape[0])
+        
+    for curr_idx in iterator:
+        curr_LBM_df = pd.read_pickle(LBM_file_info.file[curr_idx])
+        curr_LBM_vector = curr_LBM_df.groupby(['TOKEN','THRESHOLD','GUPI','TUNE_IDX','REPEAT','FOLD'],as_index=False).WINDOW_IDX.count().rename(columns={'WINDOW_IDX':'INCIDENCE'})
+        curr_LBM_vector['ATTRIBUTION'] = curr_LBM_vector['INCIDENCE']/LBM_file_info.WindowTotal[curr_idx]
+        output_df.append(curr_LBM_vector)
+    output_df = pd.concat(output_df,ignore_index=True)
+    agg_output_df = output_df.groupby(['TOKEN','THRESHOLD','TUNE_IDX'],as_index=False).ATTRIBUTION.aggregate({'SUM_ATTRIBUTION':'sum','COUNT':'count'})
+    return agg_output_df

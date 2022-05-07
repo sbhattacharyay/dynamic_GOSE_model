@@ -161,24 +161,31 @@ agg_relevance_layers = compiled_relevance_layers.groupby(['TUNE_IDX','TOKEN'],as
 
 ### CHARACTERISE TOKENS
 # Determine whether tokens are baseline
+compiled_relevance_layers['Baseline'] = compiled_relevance_layers['TOKEN'].str.startswith('Baseline')
 agg_relevance_layers['Baseline'] = agg_relevance_layers['TOKEN'].str.startswith('Baseline')
 
 # Determine whether tokens are numeric
+compiled_relevance_layers['Numeric'] = compiled_relevance_layers['TOKEN'].str.contains('_BIN')
 agg_relevance_layers['Numeric'] = agg_relevance_layers['TOKEN'].str.contains('_BIN')
 
 # Determine wheter tokens represent missing values
+compiled_relevance_layers['Missing'] = ((compiled_relevance_layers.Numeric)&(compiled_relevance_layers['TOKEN'].str.endswith('_BIN_missing')))|((~compiled_relevance_layers.Numeric)&(compiled_relevance_layers['TOKEN'].str.endswith('_NA')))
 agg_relevance_layers['Missing'] = ((agg_relevance_layers.Numeric)&(agg_relevance_layers['TOKEN'].str.endswith('_BIN_missing')))|((~agg_relevance_layers.Numeric)&(agg_relevance_layers['TOKEN'].str.endswith('_NA')))
 
 # Create empty column for predictor base token
+compiled_relevance_layers['BaseToken'] = ''
 agg_relevance_layers['BaseToken'] = ''
 
 # For numeric tokens, extract the portion of the string before '_BIN' as the BaseToken
+compiled_relevance_layers.BaseToken[compiled_relevance_layers.Numeric] = compiled_relevance_layers.TOKEN[compiled_relevance_layers.Numeric].str.replace('\\_BIN.*','',1,regex=True)
 agg_relevance_layers.BaseToken[agg_relevance_layers.Numeric] = agg_relevance_layers.TOKEN[agg_relevance_layers.Numeric].str.replace('\\_BIN.*','',1,regex=True)
 
 # For non-numeric tokens, extract everything before the final underscore, if one exists, as the BaseToken
+compiled_relevance_layers.BaseToken[~compiled_relevance_layers.Numeric] = compiled_relevance_layers.TOKEN[~compiled_relevance_layers.Numeric].str.replace('_[^_]*$','',1,regex=True)
 agg_relevance_layers.BaseToken[~agg_relevance_layers.Numeric] = agg_relevance_layers.TOKEN[~agg_relevance_layers.Numeric].str.replace('_[^_]*$','',1,regex=True)
 
 # For baseline tokens, remove the "Baseline" prefix in the BaseToken
+compiled_relevance_layers.BaseToken[compiled_relevance_layers.Baseline] = compiled_relevance_layers.BaseToken[compiled_relevance_layers.Baseline].str.replace('Baseline','',1,regex=False)
 agg_relevance_layers.BaseToken[agg_relevance_layers.Baseline] = agg_relevance_layers.BaseToken[agg_relevance_layers.Baseline].str.replace('Baseline','',1,regex=False)
 
 ### Load dictionary
@@ -186,6 +193,7 @@ old_token_dictionary = pd.read_csv('/home/sb2406/rds/hpc-work/tokens/old_token_d
 
 # Merge old token dictionary with vocab dataframes
 agg_relevance_layers = agg_relevance_layers.merge(old_token_dictionary,how='left',on=['BaseToken'])
+compiled_relevance_layers = compiled_relevance_layers.merge(old_token_dictionary,how='left',on=['BaseToken'])
 
 # Add 'TimeOfDay' token information to vocab dataframes
 agg_relevance_layers.ICUIntervention[agg_relevance_layers.BaseToken=='TimeOfDay'] = False
@@ -201,3 +209,38 @@ agg_relevance_layers = agg_relevance_layers[~(agg_relevance_layers.TOKEN == '')]
 
 # Temporarily save aggregated relevance layer values in current directory
 agg_relevance_layers.to_csv('aggregated_relevances.csv',index=False)
+
+# Take only maxmimum (nonmissing) token values per predictor
+nonmissing_agg_relevance_layers = agg_relevance_layers[~agg_relevance_layers.Missing].reset_index(drop=True)
+predictor_relevances = nonmissing_agg_relevance_layers.loc[nonmissing_agg_relevance_layers.groupby('BaseToken')['median'].idxmax()].sort_values(by='median',ascending=False).reset_index(drop=True)
+
+nonmissing_compiled_relevance_layers = compiled_relevance_layers[~compiled_relevance_layers.Missing].reset_index(drop=True)
+compiled_predictor_relevances = nonmissing_compiled_relevance_layers[nonmissing_compiled_relevance_layers.TOKEN.isin(predictor_relevances.TOKEN)].reset_index(drop=True)
+compiled_predictor_relevances.to_csv('compiled_predictor_relevances.csv',index=False)
+
+# Identify top 20 baseline predictors and top 20  dynamic predictors (and bottom 3)
+baseline_relevance_layers = predictor_relevances[predictor_relevances.Baseline].sort_values(by='median',ascending=False).reset_index(drop=True)
+baseline_relevance_layers['PredIdx'] = list(range(1,baseline_relevance_layers.shape[0]+1))
+baseline_pred_indices = list(range(1,21))+baseline_relevance_layers.PredIdx.nlargest(3).tolist()
+specific_baseline_predictors = baseline_relevance_layers[baseline_relevance_layers.PredIdx.isin(baseline_pred_indices)].reset_index(drop=True)
+unspecific_baseline_predictors = compiled_relevance_layers[compiled_relevance_layers.TOKEN.isin(baseline_relevance_layers.TOKEN[~baseline_relevance_layers.PredIdx.isin(baseline_pred_indices)])].groupby(['TUNE_IDX'],as_index=False)['RELEVANCE'].aggregate({'mean':np.mean,'std':np.std,'median':np.median,'min':np.min,'max':np.max,'Q1':lambda x: np.quantile(x,.25),'Q3':lambda x: np.quantile(x,.75),'resamples':'count'}).reset_index(drop=True)
+plot_df_baseline_predictors = pd.concat([specific_baseline_predictors,unspecific_baseline_predictors],ignore_index=True)
+plot_df_baseline_predictors.TOKEN[plot_df_baseline_predictors.TOKEN.isna()] = 'Other'
+plot_df_baseline_predictors.BaseToken[plot_df_baseline_predictors.BaseToken.isna()] = 'Other'
+plot_df_baseline_predictors.to_csv('plot_baseline_relevances.csv',index=False)
+
+dynamic_relevance_layers = predictor_relevances[~predictor_relevances.Baseline].sort_values(by='median',ascending=False).reset_index(drop=True)
+dynamic_relevance_layers['PredIdx'] = list(range(1,dynamic_relevance_layers.shape[0]+1))
+dynamic_pred_indices = list(range(1,21))+dynamic_relevance_layers.PredIdx.nlargest(3).tolist()
+specific_dynamic_predictors = dynamic_relevance_layers[dynamic_relevance_layers.PredIdx.isin(dynamic_pred_indices)].reset_index(drop=True)
+unspecific_dynamic_predictors = compiled_relevance_layers[compiled_relevance_layers.TOKEN.isin(dynamic_relevance_layers.TOKEN[~dynamic_relevance_layers.PredIdx.isin(dynamic_pred_indices)])].groupby(['TUNE_IDX'],as_index=False)['RELEVANCE'].aggregate({'mean':np.mean,'std':np.std,'median':np.median,'min':np.min,'max':np.max,'Q1':lambda x: np.quantile(x,.25),'Q3':lambda x: np.quantile(x,.75),'resamples':'count'}).reset_index(drop=True)
+plot_df_dynamic_predictors = pd.concat([specific_dynamic_predictors,unspecific_dynamic_predictors],ignore_index=True)
+plot_df_dynamic_predictors.to_csv('plot_dynamic_relevances.csv',index=False)
+
+intervention_relevance_layers = predictor_relevances[predictor_relevances.ICUIntervention].sort_values(by='median',ascending=False).reset_index(drop=True)
+intervention_relevance_layers['PredIdx'] = list(range(1,intervention_relevance_layers.shape[0]+1))
+intervention_pred_indices = list(range(1,21))+intervention_relevance_layers.PredIdx.nlargest(3).tolist()
+specific_intervention_predictors = intervention_relevance_layers[intervention_relevance_layers.PredIdx.isin(intervention_pred_indices)].reset_index(drop=True)
+unspecific_intervention_predictors = compiled_relevance_layers[compiled_relevance_layers.TOKEN.isin(intervention_relevance_layers.TOKEN[~intervention_relevance_layers.PredIdx.isin(intervention_pred_indices)])].groupby(['TUNE_IDX'],as_index=False)['RELEVANCE'].aggregate({'mean':np.mean,'std':np.std,'median':np.median,'min':np.min,'max':np.max,'Q1':lambda x: np.quantile(x,.25),'Q3':lambda x: np.quantile(x,.75),'resamples':'count'}).reset_index(drop=True)
+plot_df_intervention_predictors = pd.concat([specific_intervention_predictors,unspecific_intervention_predictors],ignore_index=True)
+plot_df_intervention_predictors.to_csv('plot_intervention_relevances.csv',index=False)

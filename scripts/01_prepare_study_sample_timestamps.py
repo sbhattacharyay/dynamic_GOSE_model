@@ -7,7 +7,8 @@
 ### Contents:
 # I. Initialisation
 # II. Load and filter CENTER-TBI dataset
-# III. Characterise ICU stay timestamps and filling missing timestamp values
+# III. Characterise ICU stay timestamps and fill in missing timestamp values
+# IV. Prepare ICU stay windows for dynamic modelling
 
 ### I. Initialisation
 import os
@@ -43,7 +44,7 @@ CENTER_TBI_demo_info = CENTER_TBI_demo_info[CENTER_TBI_demo_info.Age >= 16]
 # Filter patients who have non-missing GOSE scores
 CENTER_TBI_demo_info = CENTER_TBI_demo_info[~CENTER_TBI_demo_info.GOSE6monthEndpointDerived.isna()]
 
-### III. Characterise ICU stay timestamps and filling missing timestamp values
+### III. Characterise ICU stay timestamps and fill missing timestamp values
 # Select columns that indicate ICU admission and discharge times
 CENTER_TBI_ICU_datetime = CENTER_TBI_demo_info[['GUPI','ICUAdmDate','ICUAdmTime','ICUDischDate','ICUDischTime']].reset_index(drop=True)
 
@@ -382,3 +383,44 @@ CENTER_TBI_ICU_datetime = CENTER_TBI_ICU_datetime[CENTER_TBI_ICU_datetime.ICUDur
 
 # Save timestamps as CSV
 CENTER_TBI_ICU_datetime.to_csv('/home/sb2406/rds/hpc-work/timestamps/ICU_adm_disch_timestamps.csv',index = False)
+
+### IV. Prepare ICU stay windows for dynamic modelling
+# Define length in hours
+WINDOW_HOURS = 2
+
+# Define empty lists to store window information
+STUDY_WINDOWS = []
+
+# Iterate through study patients and append window timestamps to list
+for i in tqdm.tqdm(range(CENTER_TBI_ICU_datetime.shape[0]),'Partitioning dataset into study windows'):
+    
+    # Extract current patient information
+    curr_GUPI = CENTER_TBI_ICU_datetime.GUPI[i]
+    curr_ICUAdmTimeStamp = CENTER_TBI_ICU_datetime.ICUAdmTimeStamp[i]
+    curr_ICUDischTimeStamp = CENTER_TBI_ICU_datetime.ICUDischTimeStamp[i]
+    
+    # Calculate total ICU duration and number of study windows
+    secs_ICUStay = (curr_ICUDischTimeStamp - curr_ICUAdmTimeStamp).total_seconds()
+    total_bin_count = int(np.ceil(secs_ICUStay/(WINDOW_HOURS*3600)))
+    
+    # Derive start and end timestamps for study windows from admission
+    start_timestamps = [curr_ICUAdmTimeStamp + datetime.timedelta(hours=x*WINDOW_HOURS) for x in range(total_bin_count)]
+    end_timestamps = [ts - datetime.timedelta(microseconds=1) for ts in start_timestamps[1:]]
+    end_timestamps.append(curr_ICUDischTimeStamp+datetime.timedelta(microseconds=1))
+    
+    # Compile current patient information into a dataframe
+    GUPI_windows = pd.DataFrame({'GUPI':curr_GUPI,
+                                 'TimeStampStart':start_timestamps,
+                                 'TimeStampEnd':end_timestamps,
+                                 'WindowIdx':[i+1 for i in range(total_bin_count)],
+                                 'WindowTotal':total_bin_count
+                                })
+    
+    # Append current GUPI dataframe to running compiled lists
+    STUDY_WINDOWS.append(GUPI_windows)
+    
+# Concatenate lists of dataframes into single study window dataframe
+STUDY_WINDOWS = pd.concat(STUDY_WINDOWS,ignore_index=True)
+
+# Save window dataframe lists into `timestamps` directory
+STUDY_WINDOWS.to_csv('/home/sb2406/rds/hpc-work/timestamps/window_timestamps.csv',index = False)

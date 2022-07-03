@@ -33,12 +33,16 @@ def no_digit_strings_to_na(x):
         return x
     
 # Function to categorize tokens under certain conditions
-def categorizer(x):
-    if is_integer_dtype(x) & (len(x.unique()) <= 20):
-        return x.astype(str).str.zfill(int(np.log10(x.max()))+1)
-    elif is_float_dtype(x) & (len(x.unique()) <= 20):
+def categorizer(x,threshold=20):
+    if is_integer_dtype(x) & (len(x.unique()) <= threshold):
+        new_x = x.astype(str).str.zfill(3)
+        new_x[new_x == 'nan'] = np.nan
+        return new_x
+    elif is_float_dtype(x) & (len(x.unique()) <= threshold):
         new_x = x.astype(str).str.replace('.','dec',regex=False)
         new_x[new_x.str.endswith('dec0')] = new_x[new_x.str.endswith('dec0')].str.replace('dec0','',regex=False)
+        new_x = new_x.str.zfill(3)
+        new_x[new_x == 'nan'] = np.nan
         return new_x
     else:
         return x

@@ -1,1 +1,0 @@
-# dynamic_GOSE_model

@@ -63,6 +63,8 @@ demo_names = list(demo_info.columns)
 demo_baseline_variable_desc = pd.read_excel('/home/sb2406/rds/hpc-work/CENTER-TBI/DemoInjHospMedHx/inspection_table.xlsx',sheet_name='baseline_variables',na_values = ["NA","NaN"," ", ""])
 demo_baseline_names = demo_baseline_variable_desc.name[demo_baseline_variable_desc.name.isin(demo_names)].to_list()
 baseline_demo_info = demo_info[['GUPI']+demo_baseline_names].dropna(subset=demo_baseline_names,how='all').reset_index(drop=True)
+baseline_demo_info.columns = baseline_demo_info.columns.str.replace('_','')
+demo_baseline_names = [x.replace('_', '') for x in demo_baseline_names]
 
 ## Get names of variables used to calculate new baseline variables
 demo_new_variable_desc = pd.read_excel('/home/sb2406/rds/hpc-work/CENTER-TBI/DemoInjHospMedHx/inspection_table.xlsx',sheet_name='new_variable_calculation',na_values = ["NA","NaN"," ", ""])
@@ -234,6 +236,8 @@ imaging_variable_desc = pd.read_excel('/home/sb2406/rds/hpc-work/CENTER-TBI/Imag
 imaging_names = imaging_variable_desc.name[imaging_variable_desc.name.isin(ER_imaging_names)].to_list()+['CTLesionDetected']
 new_imaging_names = ['BaselineER'+n for n in imaging_names]
 ER_imaging = ER_imaging[['GUPI']+imaging_names].dropna(subset=imaging_names,how='all').rename(columns=dict(zip(imaging_names,new_imaging_names))).reset_index(drop=True)
+ER_imaging.columns = ER_imaging.columns.str.replace('_','')
+new_imaging_names = [x.replace('_', '') for x in new_imaging_names]
 
 # First, separate out CT and MRI dataframes
 ER_CT_imaging = ER_imaging[ER_imaging.BaselineERXsiType == 'xnat:ctSessionData'].dropna(axis=1,how='all').reset_index(drop=True)
@@ -285,7 +289,7 @@ numeric_baseline_predictors = pd.concat([numeric_baseline_predictors.melt(id_var
                                          numeric_ER_labs.melt(id_vars='GUPI',var_name='VARIABLE',value_name='VALUE'),
                                          numeric_ER_CT_imaging.melt(id_vars='GUPI',var_name='VARIABLE',value_name='VALUE')],ignore_index=True).sort_values(by=['GUPI','VARIABLE','VALUE'])
 
-numeric_baseline_predictors.to_pickle(os.path.join(form_pred_dir,'numeric_baseline_predictors.pkl'))
+numeric_baseline_predictors.reset_index(drop=True).to_pickle(os.path.join(form_pred_dir,'numeric_baseline_predictors.pkl'))
 
 ### III. Format discharge predictors in CENTER-TBI
 # Load demographic, history, injury characeristic discharge predictors
@@ -1061,6 +1065,8 @@ daily_vitals_info.DVDate = pd.to_datetime(daily_vitals_info.DVDate,format = '%Y-
 daily_vitals_desc = pd.read_excel('/home/sb2406/rds/hpc-work/CENTER-TBI/DailyVitals/inspection_table.xlsx',sheet_name='daily variables',na_values = ["NA","NaN"," ", ""])
 daily_vitals_names = daily_vitals_desc.name[daily_vitals_desc.name.isin(daily_vitals_info.columns)].to_list()
 daily_vitals_info = daily_vitals_info[['GUPI']+daily_vitals_names].dropna(subset=[n for n in daily_vitals_names if n not in ['DVTimepoint','DVDate']],how='all').reset_index(drop=True)
+daily_vitals_info.columns = daily_vitals_info.columns.str.replace('_','')
+daily_vitals_names = [x.replace('_', '') for x in daily_vitals_names]
 
 # Iterate through GUPIs and fix `DVDate` based on `DVTimepoint` information if possible
 problem_GUPIs = []
@@ -2134,6 +2140,8 @@ imaging_names = [n for n in imaging if n not in ['GUPI','CRFForm']]
 imaging_variable_desc = pd.read_excel('/home/sb2406/rds/hpc-work/CENTER-TBI/Imaging/inspection_table.xlsx',sheet_name='variables',na_values = ["NA","NaN"," ", ""])
 imaging_names = imaging_variable_desc.name[imaging_variable_desc.name.isin(imaging_names)].to_list()+['CTLesionDetected']
 imaging = imaging[['GUPI']+imaging_names].dropna(subset=imaging_names,how='all').reset_index(drop=True)
+imaging.columns = imaging.columns.str.replace('_','')
+imaging_names = [x.replace('_', '') for x in imaging_names]
 
 # Construct imaging timestamps
 imaging['ExperimentTimeStamp'] = imaging[['ExperimentDate', 'ExperimentTime']].astype(str).agg(' '.join, axis=1)

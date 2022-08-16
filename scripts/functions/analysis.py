@@ -41,6 +41,27 @@ from statsmodels.tools.tools import add_constant
 # TQDM for progress tracking
 from tqdm import tqdm
 
+# Function to calculate ORC on validation set predictions
+def calc_val_ORC(pred_df,window_indices,progress_bar = True,progress_bar_desc = ''):
+    orcs = []
+    if progress_bar:
+        iterator = tqdm(pred_df.TUNE_IDX.unique(),desc=progress_bar_desc)
+    else:
+        iterator = pred_df.TUNE_IDX.unique()
+    for curr_tune_idx in iterator:
+        for curr_wi in window_indices:
+            filt_is_preds = pred_df[(pred_df.WindowIdx == curr_wi)&(pred_df.TUNE_IDX == curr_tune_idx)].reset_index(drop=True)
+            aucs = []
+            for ix, (a, b) in enumerate(itertools.combinations(np.sort(filt_is_preds.TrueLabel.unique()), 2)):
+                filt_prob_matrix = filt_is_preds[filt_is_preds.TrueLabel.isin([a,b])].reset_index(drop=True)
+                filt_prob_matrix['ConditLabel'] = (filt_prob_matrix.TrueLabel == b).astype(int)
+                aucs.append(roc_auc_score(filt_prob_matrix['ConditLabel'],filt_prob_matrix['ExpectedValue']))
+            orcs.append(pd.DataFrame({'TUNE_IDX':curr_tune_idx,
+                                      'WINDOW_IDX':curr_wi,
+                                      'METRIC':'ORC',
+                                      'VALUE':np.mean(aucs)},index=[0]))
+    return pd.concat(orcs,ignore_index=True)
+    
 # Function to load and compile test performance metrics for DeepIMPACT models
 def collect_metrics(metric_file_info,progress_bar = True, progress_bar_desc = ''):
     output_df = []
@@ -58,18 +79,6 @@ def collect_calib_curves(curve_file_info,progress_bar = True, progress_bar_desc 
     else:
         iterator = curve_file_info.file
     return pd.concat([pd.read_pickle(f) for f in iterator],ignore_index=True)
-
-# Function to calculate ORC
-def calc_ORC(prob_matrix,true_labels,prob_cols):
-    prob_matrix['TrueLabel'] = true_labels
-    aucs = []
-    for ix, (a, b) in enumerate(itertools.combinations(np.sort(true_labels.unique()), 2)):
-        filt_prob_matrix = prob_matrix[prob_matrix.TrueLabel.isin([a,b])].reset_index(drop=True)
-        filt_prob_matrix['ConditProb'] = filt_prob_matrix[prob_cols[b]]/(filt_prob_matrix[prob_cols[a]] + filt_prob_matrix[prob_cols[b]])
-        filt_prob_matrix['ConditProb'] = np.nan_to_num(filt_prob_matrix['ConditProb'],nan=.5,posinf=1,neginf=0)
-        filt_prob_matrix['ConditLabel'] = (filt_prob_matrix.TrueLabel == b).astype(int)
-        aucs.append(roc_auc_score(filt_prob_matrix['ConditLabel'],filt_prob_matrix['ConditProb']))
-    return np.mean(aucs)
 
 # Function to calculate Somers D
 def calc_Somers_D(prob_matrix,true_labels,prob_cols):

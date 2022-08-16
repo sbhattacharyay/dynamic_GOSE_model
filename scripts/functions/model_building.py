@@ -115,6 +115,27 @@ def format_time_tokens(token_df,time_choice,train):
         
     return token_df, mask_indices
 
+# Define function to load calibrated predictions
+def load_calibrated_predictions(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_predictions = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+    
+    # Load each prediction file, add 'WindowIdx' and repeat/fold information
+    for curr_row in iterator:
+        try:
+            curr_preds = pd.read_csv(info_df.FILE[curr_row])
+            curr_preds['FOLD'] = info_df.FOLD[curr_row]
+            curr_preds['SET'] = info_df.SET[curr_row]
+            compiled_predictions.append(curr_preds)
+        except:
+            print("An exception occurred for file: "+info_df.FILE[curr_row])         
+    return pd.concat(compiled_predictions,ignore_index=True)
+
 def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
     
     compiled_predictions = []
@@ -271,25 +292,6 @@ def load_tune_predictions(info_df, progress_bar=True, progress_bar_desc=''):
         elif info_df.adm_or_disch[curr_row] == 'disch':
             curr_preds['WindowIdx'] = curr_preds.groupby('GUPI').cumcount(ascending=False)+1
         
-        compiled_predictions.append(curr_preds)
-        
-    return pd.concat(compiled_predictions,ignore_index=True)
-
-def load_calibrated_predictions(info_df, progress_bar=True, progress_bar_desc=''):
-    
-    compiled_predictions = []
-        
-    if progress_bar:
-        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
-    else:
-        iterator = range(info_df.shape[0])
-    
-    # Load each prediction file, add 'WindowIdx' and repeat/fold information
-    for curr_row in iterator:
-        
-        curr_preds = pd.read_csv(info_df.FILE[curr_row])
-        curr_preds['REPEAT'] = info_df.REPEAT[curr_row]
-        curr_preds['FOLD'] = info_df.FOLD[curr_row]
         compiled_predictions.append(curr_preds)
         
     return pd.concat(compiled_predictions,ignore_index=True)

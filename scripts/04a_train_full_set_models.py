@@ -58,7 +58,7 @@ from tqdm import tqdm
 from classes.datasets import DYN_ALL_PREDICTOR_SET
 from classes.calibration import TemperatureScaling, VectorScaling
 from functions.model_building import collate_batch, format_tokens, format_time_tokens, T_scaling, vector_scaling
-from functions.analysis import calc_ECE, calc_MCE, calc_ORC, calc_thresh_calibration
+from functions.analysis import calc_ECE, calc_MCE, calc_val_ORC, calc_thresh_calibration
 from models.dynamic_APM import GOSE_model
 
 # Set version code
@@ -79,44 +79,46 @@ partitions = cv_splits[['FOLD']].drop_duplicates().reset_index(drop=True)
 
 # II. Create grid of training combinations
 # If tuning grid doesn't exist, create it
-if not os.path.exists(os.path.join(model_dir,'tuning_grid.csv')):
+# if not os.path.exists(os.path.join(model_dir,'tuning_grid.csv')):
 
-    # Create parameters for training token models
-    tuning_parameters = {'WINDOW_LIMIT':[12,24,84,'None'],
-                         'TIME_TOKENS':['None','DSA_only','TOD_only','Both'],
-                         'RNN_TYPE':['LSTM','GRU'],
-                         'LATENT_DIM':[32,64,128],
-                         'HIDDEN_DIM':[32,64,128],
-                         'TOKEN_CUTS':[20],
-                         'EMBED_DROPOUT':[.2],
-                         'RNN_LAYERS':[1],
-                         'NUM_EPOCHS':[30],
-                         'ES_PATIENCE':[10],
-                         'IMBALANCE_CORRECTION':['weights'],
-                         'OUTPUT_ACTIVATION':['softmax'],
-                         'LEARNING_RATE':[0.001],
-                         'BATCH_SIZE':[1]}
+#     # Create parameters for training token models
+#     tuning_parameters = {'WINDOW_LIMIT':[12,24,84,'None'],
+#                          'TIME_TOKENS':['None','DSA_only','TOD_only','Both'],
+#                          'RNN_TYPE':['LSTM','GRU'],
+#                          'LATENT_DIM':[32,64,128],
+#                          'HIDDEN_DIM':[32,64,128],
+#                          'TOKEN_CUTS':[20],
+#                          'EMBED_DROPOUT':[.2],
+#                          'RNN_LAYERS':[1],
+#                          'NUM_EPOCHS':[30],
+#                          'ES_PATIENCE':[10],
+#                          'IMBALANCE_CORRECTION':['weights'],
+#                          'OUTPUT_ACTIVATION':['softmax'],
+#                          'LEARNING_RATE':[0.001],
+#                          'BATCH_SIZE':[1]}
     
-    # Convert parameter dictionary to dataframe
-    tuning_grid = pd.DataFrame([row for row in itertools.product(*tuning_parameters.values())],columns=tuning_parameters.keys())
+#     # Convert parameter dictionary to dataframe
+#     tuning_grid = pd.DataFrame([row for row in itertools.product(*tuning_parameters.values())],columns=tuning_parameters.keys())
     
-    # Assign tuning indices
-    tuning_grid['TUNE_IDX'] = list(range(1,tuning_grid.shape[0]+1))
+#     # Assign tuning indices
+#     tuning_grid['TUNE_IDX'] = list(range(1,tuning_grid.shape[0]+1))
     
-    # Reorder tuning grid columns
-    tuning_grid = tuning_grid[['TUNE_IDX','WINDOW_LIMIT','TIME_TOKENS','LATENT_DIM','HIDDEN_DIM','TOKEN_CUTS','RNN_TYPE','EMBED_DROPOUT','RNN_LAYERS','NUM_EPOCHS','ES_PATIENCE','IMBALANCE_CORRECTION','OUTPUT_ACTIVATION','LEARNING_RATE','BATCH_SIZE']].reset_index(drop=True)
+#     # Reorder tuning grid columns
+#     tuning_grid = tuning_grid[['TUNE_IDX','WINDOW_LIMIT','TIME_TOKENS','LATENT_DIM','HIDDEN_DIM','TOKEN_CUTS','RNN_TYPE','EMBED_DROPOUT','RNN_LAYERS','NUM_EPOCHS','ES_PATIENCE','IMBALANCE_CORRECTION','OUTPUT_ACTIVATION','LEARNING_RATE','BATCH_SIZE']].reset_index(drop=True)
     
-    # Expand tuning grid per cross-validation folds
-    partitions['key'] = 1
-    tuning_grid['key'] = 1
-    tuning_grid = tuning_grid.merge(partitions,how='outer',on='key').drop(columns='key').reset_index(drop=True)
+#     # Expand tuning grid per cross-validation folds
+#     partitions['key'] = 1
+#     tuning_grid['key'] = 1
+#     tuning_grid = tuning_grid.merge(partitions,how='outer',on='key').drop(columns='key').reset_index(drop=True)
 
-    # Save tuning grid to model directory
-    tuning_grid.to_csv(os.path.join(model_dir,'tuning_grid.csv'),index=False)
+#     # Save tuning grid to model directory
+#     tuning_grid.to_csv(os.path.join(model_dir,'tuning_grid.csv'),index=False)
 
-else:
-    # Load optimised tuning grid
-    tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
+# else:
+    
+#     # Load optimised tuning grid
+#     tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
+tuning_grid = pd.read_pickle('remaining_tuning_grid.pkl')
 
 ### III. Train dynamic APM model based on provided hyperparameter row index
 # Argument-induced training functions

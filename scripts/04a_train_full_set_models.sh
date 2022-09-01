@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=v7_calibrated_dynAPM_training
 #SBATCH --time=02:00:00
-#SBATCH --array=1-1153
+#SBATCH --array=0-1439
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

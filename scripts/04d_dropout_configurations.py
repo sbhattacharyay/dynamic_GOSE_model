@@ -1,4 +1,4 @@
-#### Master Script 04b: Compile predictions of dynamic all-predictor-based models ####
+#### Master Script 04d: Compile validation set performance results for configuration dropout of dynamic all-predictor-based models ####
 #
 # Shubhayu Bhattacharyay
 # University of Cambridge
@@ -57,9 +57,11 @@ VERSION = 'v7-0'
 # Define model output directory based on version code
 model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+VERSION
 
-# Define and create model performance directory based on version code
+# Define model performance directory based on version code
 model_perf_dir = '/home/sb2406/rds/hpc-work/model_performance/'+VERSION
-os.makedirs(model_perf_dir,exist_ok=True)
+
+# Define subdirectory to store validation set bootstrapping results
+val_bs_dir = os.path.join(model_perf_dir,'validation_set_bootstrapping')
 
 # Load cross-validation information to get GUPI and outcomes
 cv_splits = pd.read_csv('../cross_validation_splits.csv')
@@ -69,13 +71,13 @@ study_GUPI_GOSE = cv_splits[['GUPI','GOSE']].drop_duplicates()
 # Set number of cores for all parallel processing
 NUM_CORES = multiprocessing.cpu_count()
 
-# Set number of resamples for bootstrapping-based dropout
+# Set number of resamples for bootstrapping-based testing set performance
 NUM_RESAMP = 1000
 
 # Load the optimised tuning grid
 tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
 
-### II. Compile and save validation and testing set predictions across partitions
+### II. Compile and save bootstrapped validation set performance dataframes
 # Search for all prediction files
 pred_files = []
 for path in Path(model_dir).rglob('*_predictions.csv'):

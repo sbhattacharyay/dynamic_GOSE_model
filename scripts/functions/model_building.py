@@ -136,6 +136,36 @@ def load_calibrated_predictions(info_df, progress_bar=True, progress_bar_desc=''
             print("An exception occurred for file: "+info_df.FILE[curr_row])         
     return pd.concat(compiled_predictions,ignore_index=True)
 
+# Define function to load validation set performance metrics
+def load_val_performance(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_performance = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+        
+    # Load each validation performance file
+    for curr_row in iterator:
+        compiled_performance.append(pd.read_pickle(info_df.FILE[curr_row]))      
+    return pd.concat(compiled_performance,ignore_index=True)
+
+# Define function to load testing set performance metrics
+def load_test_performance(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_performance = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+        
+    # Load each validation performance file
+    for curr_row in iterator:
+        compiled_performance.append(pd.read_pickle(info_df.FILE[curr_row]))      
+    return pd.concat(compiled_performance,ignore_index=True)
+        
 def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
     
     compiled_predictions = []

@@ -410,12 +410,12 @@ class timeshap_GOSE_model(nn.Module):
         else:
             curr_rnn_out, curr_rnn_hidden = self.rnn_module(curr_embedding_out, hidden_states)
             
-        # -1 on hidden, to select the last layer of the stacked gru
-        assert torch.equal(curr_rnn_out[:,-1,:], curr_rnn_hidden[-1, :, :])
+        # -1 on hidden, to select the last layer of the stacked gru/lstm
+        assert torch.equal(curr_rnn_out[:,-1,:], curr_rnn_hidden[0][-1, :, :])
         
         # Calculate output values for TimeSHAP
-        curr_gose_out = self.hidden2gose(curr_rnn_hidden[-1, :, :])
-        curr_gose_out = F.softmax(curr_gose_out).cumsum(-1)[:,self.threshold_idx]
+        curr_gose_out = self.hidden2gose(curr_rnn_hidden[0][-1, :, :])
+        curr_gose_out = (1-F.softmax(curr_gose_out).cumsum(-1))[:,self.threshold_idx]
         
         # Return output value of focus and RNN hidden state
         return curr_gose_out, curr_rnn_hidden

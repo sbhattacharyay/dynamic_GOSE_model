@@ -165,7 +165,22 @@ def load_test_performance(info_df, progress_bar=True, progress_bar_desc=''):
     for curr_row in iterator:
         compiled_performance.append(pd.read_pickle(info_df.FILE[curr_row]))      
     return pd.concat(compiled_performance,ignore_index=True)
-        
+
+# Define function to convert index set dataframe to multihot matrix
+def df_to_multihot_matrix(index_set, vocab_length, unknown_index, cols_to_add):
+       
+    # Initialize empty dataframe for multihot encoding
+    multihot_matrix = np.zeros([index_set.shape[0],vocab_length+cols_to_add])
+    
+    # Encode testing set into multihot encoded matrix
+    for i in tqdm(range(index_set.shape[0])):
+        curr_indices = np.array(index_set.VocabIndex[i])
+        if sum(curr_indices == unknown_index) > 1:
+            zero_indices = np.where(curr_indices == unknown_index)[0]
+            curr_indices[zero_indices[1:]] = [vocab_length + j for j in range(sum(curr_indices == unknown_index)-1)]
+        multihot_matrix[i,curr_indices] = 1    
+    return multihot_matrix
+
 def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
     
     compiled_predictions = []
@@ -346,19 +361,3 @@ def vector_scaling(logits, args):
     curr_vector = args.get('vector', None)
     curr_biases = args.get('biases', None)
     return (torch.matmul(logits,torch.diag_embed(curr_vector.squeeze(1))) + curr_biases.squeeze(1))
-
-def df_to_multihot_matrix(index_set, vocab_length, unknown_index, cols_to_add):
-       
-    # Initialize empty dataframe for multihot encoding
-    multihot_matrix = np.zeros([index_set.shape[0],vocab_length+cols_to_add])
-    
-    # Encode testing set into multihot encoded matrix
-    for i in tqdm(range(index_set.shape[0])):
-        curr_indices = np.array(index_set.VocabIndex[i])
-        if sum(curr_indices == unknown_index) > 1:
-            zero_indices = np.where(curr_indices == unknown_index)[0]
-            curr_indices[zero_indices[1:]] = [vocab_length + j for j in range(sum(curr_indices == unknown_index)-1)]
-        multihot_matrix[i,curr_indices] = 1
-    multihot_matrix = torch.tensor(multihot_matrix).float()
-    
-    return multihot_matrix

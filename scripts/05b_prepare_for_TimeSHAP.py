@@ -166,7 +166,7 @@ sig_transitions.to_pickle(os.path.join(shap_dir,'significant_transition_points.p
 sig_transitions = pd.read_pickle(os.path.join(shap_dir,'significant_transition_points.pkl'))
 
 # Add fold information for instance in testing set and sort
-sig_transitions = sig_transitions.merge(test_splits[['FOLD','GUPI']],how='left').sort_values(by=['TUNE_IDX','GUPI','Threshold','WindowIdx']).reset_index(drop=True)
+sig_transitions = sig_transitions.merge(test_splits[['FOLD','GUPI']],how='left').sort_values(by=['FOLD','TUNE_IDX','GUPI','Threshold','WindowIdx']).reset_index(drop=True)
 
 # Partition evenly along number of available array tasks
 max_array_tasks = 10000
@@ -327,7 +327,7 @@ for curr_fold in tqdm(ckpt_info.FOLD.unique(),'Iterating through folds to calcul
         curr_time_tokens = post_tuning_grid.TIME_TOKENS[(post_tuning_grid.TUNE_IDX==curr_tune_idx)&(post_tuning_grid.FOLD==curr_fold)].values[0]
         
         # Format time tokens of index sets based on current tuning configuration
-        format_testing_set,time_tokens_mask = format_time_tokens(testing_set.copy(),curr_time_tokens,True)
+        format_testing_set,time_tokens_mask = format_time_tokens(testing_set.copy(),curr_time_tokens,False)
         format_testing_set['SeqLength'] = format_testing_set.VocabIndex.apply(len)
         format_testing_set['Unknowns'] = format_testing_set.VocabIndex.apply(lambda x: x.count(unknown_index))        
         

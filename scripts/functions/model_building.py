@@ -181,6 +181,23 @@ def df_to_multihot_matrix(index_set, vocab_length, unknown_index, cols_to_add):
         multihot_matrix[i,curr_indices] = 1    
     return multihot_matrix
 
+# Define function to load TimeSHAP or missing significant transition dataframes
+def load_timeSHAP(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_timeSHAP = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+        
+    # Load each validation performance file
+    for curr_row in iterator:
+        curr_df = pd.read_pickle(info_df.FILE[curr_row])
+        curr_df['PARTITION_IDX'] = info_df.PARTITION_IDX[curr_row]
+        compiled_timeSHAP.append(curr_df)      
+    return pd.concat(compiled_timeSHAP,ignore_index=True)
+
 def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
     
     compiled_predictions = []

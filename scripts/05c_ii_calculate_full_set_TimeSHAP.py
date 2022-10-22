@@ -239,7 +239,7 @@ def main(array_task_id):
         compiled_ts_transitions = pd.concat(compiled_ts_transitions,ignore_index=True)
         
         # Save compiled missed transition values into SHAP subdirectory
-        compiled_ts_transitions.to_pickle(os.path.join(missed_transition_dir,'timeSHAP_values_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
+        compiled_ts_transitions.to_pickle(os.path.join(missed_transition_dir,'missing_transitions_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
 #         compiled_ts_transitions.to_pickle(os.path.join(missed_transition_dir,'missing_transitions_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
     
     # If TimeSHAP feature values exist, compile and save

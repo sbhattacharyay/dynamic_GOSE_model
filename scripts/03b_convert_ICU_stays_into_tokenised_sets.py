@@ -10,6 +10,7 @@
 # III. Load and prepare formatted categorical predictors
 # IV. Tokenise numeric predictors and place into study windows
 # V. Categorize tokens from dictionaries for characterization
+# VI. Create full list of tokens for exploration
 
 ### I. Initialisation
 # Fundamental libraries
@@ -630,3 +631,99 @@ for curr_fold in tqdm(cv_splits.FOLD.unique(),'Iterating through folds of cross-
     
 #     # Calculate total number of instances per token
 #     instances_per_token = token_patient_incidences.groupby('Token',as_index=False).Count.sum().sort_values(by=['Count','Token'],ascending=[False,True]).reset_index(drop=True).rename(columns={'Count':'TotalCount'})
+
+### VI. Create full list of tokens for exploration
+## Iterate through folds to load token dictionaries per fold
+# Initialize empty list for storing tokens
+compiled_tokens_list = []
+
+# Iterate through folds
+for curr_fold in tqdm(cv_splits.FOLD.unique(),'Iterating through folds of cross-validation for vocabulary collection'):
+           
+    # Create a subdirectory for the current fold
+    fold_dir = os.path.join(tokens_dir,'fold'+str(curr_fold))
+    
+    # Load current fold vocabulary
+    curr_vocab = cp.load(open(os.path.join(fold_dir,'token_dictionary.pkl'),"rb"))
+    
+    # Append tokens from current vocabulary to running list
+    compiled_tokens_list.append(curr_vocab.get_itos())
+
+# Flatten list of token lists
+compiled_tokens_list = np.unique(list(itertools.chain.from_iterable(compiled_tokens_list)))
+
+## Create characterised dataframe of all possible tokens
+# Initialise dataframe
+full_token_keys = pd.DataFrame({'Token':compiled_tokens_list})
+
+# Parse out `BaseToken` and `Value` from `Token`
+full_token_keys['BaseToken'] = full_token_keys.Token.str.split('_').str[0]
+full_token_keys['Value'] = full_token_keys.Token.str.split('_',n=1).str[1].fillna('')
+
+# Determine wheter tokens represent missing values
+full_token_keys['Missing'] = full_token_keys.Token.str.endswith('_NAN')
+
+# Determine whether tokens are numeric
+full_token_keys['Numeric'] = full_token_keys.Token.str.contains('_BIN')
+
+# Determine whether tokens are baseline or discharge
+full_token_keys['Baseline'] = full_token_keys.Token.str.startswith('Baseline')
+full_token_keys['Discharge'] = full_token_keys.Token.str.startswith('Discharge')
+
+# For baseline and discharge tokens, remove prefix from `BaseToken` entry
+full_token_keys.BaseToken[full_token_keys.Baseline] = full_token_keys.BaseToken[full_token_keys.Baseline].str.replace('Baseline','',1,regex=False)
+full_token_keys.BaseToken[full_token_keys.Discharge] = full_token_keys.BaseToken[full_token_keys.Discharge].str.replace('Discharge','',1,regex=False)
+
+# Load manually corrected `BaseToken` categorization key
+base_token_key = pd.read_excel('/home/sb2406/rds/hpc-work/tokens/base_token_keys.xlsx')
+base_token_key['BaseToken'] = base_token_key['BaseToken'].fillna('')
+
+# Merge base token key information to dataframe version of vocabulary
+full_token_keys = full_token_keys.merge(base_token_key,how='left',on=['BaseToken','Numeric','Baseline','Discharge'])
+
+## Manually add 'Missing' status for other unknown tokens
+# Convert all code "88" (unknowns) to missing status except for features with feasible 88 values
+full_token_keys.Missing[(full_token_keys.Value=='088')&(~full_token_keys.BaseToken.isin(['DrgSubIllctUseDur','GOATTotScr']))] = True
+
+# Convert all tokens with value containing "UNK" to missing status
+full_token_keys.Missing[full_token_keys.Value.str.contains('UNK')&(full_token_keys.Ordered|full_token_keys.Binary)] = True
+
+# Convert all code "77" (unknowns) binary variables and `TILPhysicianSatICP` to missing status
+full_token_keys.Missing[(full_token_keys.Value=='077')&(full_token_keys.Binary|(full_token_keys.BaseToken=='TILPhysicianSatICP'))] = True
+
+# Convert code "2" (unknowns) for `CTLesionDetected` to missing status
+full_token_keys.Missing[(full_token_keys.Value=='002')&((full_token_keys.BaseToken=='CTLesionDetected')|(full_token_keys.BaseToken=='ERCTLesionDetected'))] = True
+
+# If binary, convert "uninterpretable" imaging codes to Missing
+full_token_keys.Missing[(full_token_keys.Value.isin(['UNINTERPRETABLE','INDETEMINATE','NOTINTERPRETED']))&(full_token_keys.Binary)] = True
+
+## Add ordering index to Binary and Ordered variables
+# If Binary or Ordered variables have less than 2 nonmissing options in dataset, remove Binary or Ordered label
+CountPerBaseToken = full_token_keys.groupby(['BaseToken','Ordered','Binary'],as_index=False).Missing.aggregate({'Missings':'sum','ValueOptions':'count'})
+CountPerBaseToken['NonMissings'] = CountPerBaseToken.ValueOptions - CountPerBaseToken.Missings
+full_token_keys.Binary[full_token_keys.BaseToken.isin(CountPerBaseToken[CountPerBaseToken.Binary&(CountPerBaseToken.NonMissings != 2)].BaseToken.unique())] = False
+full_token_keys.Ordered[full_token_keys.BaseToken.isin(CountPerBaseToken[CountPerBaseToken.Ordered&(CountPerBaseToken.NonMissings == 1)].BaseToken.unique())] = False
+
+# Initialise column for storing ordering index for inary or Ordered variables
+full_token_keys.insert(3, 'OrderIdx',np.nan)
+
+# Create list inary or Ordered variables
+binary_or_ordered_vars = full_token_keys[full_token_keys.Binary|full_token_keys.Ordered].BaseToken.unique()
+
+# Sort full token dataframe alphabetically prior to iteration
+full_token_keys = full_token_keys.sort_values(by=['BaseToken','Token'],ignore_index=True)
+
+# Iterate through Binary or Ordered variables and order values alphabetically
+for curr_var in tqdm(binary_or_ordered_vars,'Iterating through Binary or Ordered variables for ordering'):    
+    full_token_keys.OrderIdx[(full_token_keys.BaseToken==curr_var)&~full_token_keys.Missing] = np.arange(full_token_keys[(full_token_keys.BaseToken==curr_var)&~full_token_keys.Missing].shape[0])
+
+# Fix ordering index for exception-case variables
+exception_vars = ['InjViolenceVictimAlcohol','InjViolenceVictimDrugs','LOCLossOfConsciousness','EDCompEventHypothermia','EDComplEventHypoxia','EDComplEventHypotension','InjViolenceOtherPartyDrugs','InjViolenceOtherPartyAlcohol']
+full_token_keys.OrderIdx[(full_token_keys.BaseToken.isin(exception_vars))&(full_token_keys.OrderIdx==1)] = 3
+full_token_keys.OrderIdx[(full_token_keys.BaseToken.isin(exception_vars))&(full_token_keys.OrderIdx==2)] = 4
+full_token_keys.OrderIdx[(full_token_keys.BaseToken.isin(exception_vars))&(full_token_keys.OrderIdx==3)] = 2
+full_token_keys.OrderIdx[(full_token_keys.BaseToken.isin(exception_vars))&(full_token_keys.OrderIdx==4)] = 1
+
+## Save full token list dataframe if it manually edited version does not yet exist
+if not os.path.exists('/home/sb2406/rds/hpc-work/tokens/full_token_keys.xlsx'):
+    full_token_keys.to_excel('/home/sb2406/rds/hpc-work/tokens/full_token_keys.xlsx',index=False)

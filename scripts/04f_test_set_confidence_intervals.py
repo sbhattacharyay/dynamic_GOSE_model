@@ -7,9 +7,7 @@
 ### Contents:
 # I. Initialisation
 # II. Compile and save bootstrapped testing set performance dataframes
-# III. Dropout configurations based on testing set calibration and discrimination information
-# IV. Delete folders of underperforming configurations
-# V. Create bootstrapping resamples for calculating testing set performance
+# III. Calculate 95% confidence intervals on test set performance metrics
 
 ### I. Initialisation
 # Fundamental libraries
@@ -50,10 +48,10 @@ from statsmodels.tools.tools import add_constant
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
 # Custom methods
-from functions.model_building import load_val_performance
+from functions.model_building import load_test_performance
 
 # Set version code
-VERSION = 'v7-0'
+VERSION = 'v6-0'
 
 # Define model output directory based on version code
 model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+VERSION
@@ -76,7 +74,9 @@ NUM_CORES = multiprocessing.cpu_count()
 NUM_RESAMP = 1000
 
 # Load the post-dropout tuning grid
-filt_tuning_grid = pd.read_csv(os.path.join(model_dir,'post_dropout_tuning_grid.csv'))
+# filt_tuning_grid = pd.read_csv(os.path.join(model_dir,'post_dropout_tuning_grid.csv'))
+filt_tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
+filt_tuning_grid = filt_tuning_grid[filt_tuning_grid.TUNE_IDX == 135].reset_index(drop=True)
 
 ### II. Compile and save bootstrapped testing set performance dataframes
 # Search for all performance files
@@ -94,6 +94,7 @@ perf_file_info_df = pd.DataFrame({'FILE':perf_files,
 # Separate discrimination and calibration file dataframes
 discrimination_file_info_df = perf_file_info_df[perf_file_info_df.METRIC == 'discrimination'].reset_index(drop=True)
 calibration_file_info_df = perf_file_info_df[perf_file_info_df.METRIC == 'calibration'].reset_index(drop=True)
+calib_curves_file_info_df = perf_file_info_df[perf_file_info_df.METRIC == 'calib_curves'].reset_index(drop=True)
 
 # Partition performance files across available cores
 s = [discrimination_file_info_df.RESAMPLE_IDX.max() // NUM_CORES for _ in range(NUM_CORES)]
@@ -102,20 +103,27 @@ end_idx = np.cumsum(s)
 start_idx = np.insert(end_idx[:-1],0,0)
 discrimination_files_per_core = [(discrimination_file_info_df.iloc[start_idx[idx]:end_idx[idx],:].reset_index(drop=True),True,'Loading and compiling testing set discrimination performance') for idx in range(len(start_idx))]
 calibration_files_per_core = [(calibration_file_info_df.iloc[start_idx[idx]:end_idx[idx],:].reset_index(drop=True),True,'Loading and compiling testing set calibration performance') for idx in range(len(start_idx))]
+calib_curves_files_per_core = [(calib_curves_file_info_df.iloc[start_idx[idx]:end_idx[idx],:].reset_index(drop=True),True,'Loading and compiling testing set calibration performance') for idx in range(len(start_idx))]
 
 # Load testing set discrimination and calibration performance dataframes in parallel
 with multiprocessing.Pool(NUM_CORES) as pool:
     compiled_test_discrimination = pd.concat(pool.starmap(load_test_performance, discrimination_files_per_core),ignore_index=True)
 with multiprocessing.Pool(NUM_CORES) as pool:
     compiled_test_calibration = pd.concat(pool.starmap(load_test_performance, calibration_files_per_core),ignore_index=True)
+with multiprocessing.Pool(NUM_CORES) as pool:
+    compiled_test_calib_curves = pd.concat(pool.starmap(load_test_performance, calib_curves_files_per_core),ignore_index=True)
 
-### III.Calculate 95% confidence intervals on test set performance metrics
+### III. Calculate 95% confidence intervals on test set performance metrics
 ## Discrimination metrics
 test_CI_discrimination = compiled_test_discrimination.groupby(['TUNE_IDX','METRIC','WINDOW_IDX'],as_index=False)['VALUE'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
 
 ## Calibration metrics
 test_CI_calibration = compiled_test_calibration.groupby(['TUNE_IDX','METRIC','WINDOW_IDX','THRESHOLD'],as_index=False)['VALUE'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
 
+## Calibration curves
+test_CI_calib_curves = compiled_test_calib_curves.groupby(['TUNE_IDX','WINDOW_IDX','THRESHOLD','PREDPROB'],as_index=False)['TRUEPROB'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+
 ## Save confidence intervals of both calibration and discrimination metrics
 test_CI_discrimination.to_csv(os.path.join(model_perf_dir,'test_set_discrimination_CI.csv'),index=False)
 test_CI_calibration.to_csv(os.path.join(model_perf_dir,'test_set_calibration_CI.csv'),index=False)
+test_CI_calib_curves.to_csv(os.path.join(model_perf_dir,'test_set_calib_curves_CI.csv'),index=False)

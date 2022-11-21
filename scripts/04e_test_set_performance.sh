@@ -7,8 +7,9 @@
 #SBATCH --time=00:20:00
 #SBATCH --mem=54080
 #SBATCH --array=0-999
-#SBATCH --mail-type=NONE
-#SBATCH --output=/home/sb2406/rds/hpc-work/model_performance/v7-0/hpc_logs/test_bootstrapping/dynAPM_test_bootstrapping_v7-0_trial_%a.out
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=sb2406@cam.ac.uk
+#SBATCH --output=/home/sb2406/rds/hpc-work/model_performance/v6-0/hpc_logs/test_bootstrapping/dynAPM_test_bootstrapping_v7-0_trial_%a.out
 
 . /etc/profile.d/modules.sh                # Leave this line (enables the module command)
 module purge

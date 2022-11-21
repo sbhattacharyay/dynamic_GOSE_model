@@ -198,6 +198,21 @@ def load_timeSHAP(info_df, progress_bar=True, progress_bar_desc=''):
         compiled_timeSHAP.append(curr_df)      
     return pd.concat(compiled_timeSHAP,ignore_index=True)
 
+# Define function to load robustness check dataframes
+def load_robustness_checks(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_robustness = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+        
+    # Load each validation performance file
+    for curr_row in iterator:
+        compiled_robustness.append(pd.read_pickle(info_df.FILE[curr_row]))      
+    return pd.concat(compiled_robustness,ignore_index=True)
+
 def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
     
     compiled_predictions = []

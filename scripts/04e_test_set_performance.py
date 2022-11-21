@@ -47,10 +47,10 @@ from statsmodels.nonparametric.smoothers_lowess import lowess
 
 # Custom methods
 from functions.model_building import load_calibrated_predictions
-from functions.analysis import calc_test_ORC, calc_test_thresh_calibration, calc_test_Somers_D
+from functions.analysis import calc_test_ORC, calc_test_thresh_calibration, calc_test_Somers_D, calc_test_thresh_calib_curves
 
 # Set version code
-VERSION = 'v7-0'
+VERSION = 'v6-0'
 
 # Set number of cores for all parallel processing
 NUM_CORES = multiprocessing.cpu_count()
@@ -71,10 +71,13 @@ partitions = cv_splits[['FOLD']].drop_duplicates().reset_index(drop=True)
 study_GUPI_GOSE = cv_splits[['GUPI','GOSE']].drop_duplicates()
 
 # Load bootstrapping resample dataframe for testing set performance
-bs_resamples = pd.read_pickle(os.path.join(model_perf_dir,'test_perf_bs_resamples.pkl'))
+# bs_resamples = pd.read_pickle(os.path.join(model_perf_dir,'test_perf_bs_resamples.pkl'))
+bs_resamples = pd.read_pickle(os.path.join(model_perf_dir,'bs_resamples.pkl'))
 
 # Load post-dropout tuning grid
-filt_tuning_grid = pd.read_csv(os.path.join(model_dir,'post_dropout_tuning_grid.csv'))
+# filt_tuning_grid = pd.read_csv(os.path.join(model_dir,'post_dropout_tuning_grid.csv'))
+filt_tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
+filt_tuning_grid = filt_tuning_grid[filt_tuning_grid.TUNE_IDX==135].reset_index(drop=True)
 
 ### II. Calculate testing set calibration and discrimination metrics based on provided bootstrapping resample row index
 # Argument-induced bootstrapping functions
@@ -85,7 +88,8 @@ def main(array_task_id):
     curr_GUPIs = bs_resamples.GUPIs[array_task_id]
     
     # Load and filter compiled testing set
-    test_predictions_df = pd.read_pickle(os.path.join(model_dir,'compiled_test_predictions.pkl'))
+#     test_predictions_df = pd.read_pickle(os.path.join(model_dir,'compiled_test_predictions.pkl'))
+    test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_test_predictions.csv'))
     test_predictions_df = test_predictions_df[(test_predictions_df.GUPI.isin(curr_GUPIs))&(test_predictions_df.TUNE_IDX.isin(filt_tuning_grid.TUNE_IDX))].reset_index(drop=True)
     
     # Remove logit columns from dataframe
@@ -99,22 +103,40 @@ def main(array_task_id):
     index_vector = np.array(list(range(7)), ndmin=2).T
     test_predictions_df['ExpectedValue'] = np.matmul(prob_matrix.values,index_vector)
     
+    # Calculate from-discharge window indices
+    window_totals = test_predictions_df.groupby(['GUPI','TUNE_IDX','REPEAT','FOLD'],as_index=False).WindowIdx.aggregate({'WindowTotal':'max'})
+    test_predictions_df = test_predictions_df.merge(window_totals,how='left')
+    from_discharge_test_predictions_df = test_predictions_df.copy()
+    from_discharge_test_predictions_df['WindowIdx'] = from_discharge_test_predictions_df['WindowIdx'] - from_discharge_test_predictions_df['WindowTotal'] - 1
+    
     # Create array of unique tuning indices
     uniq_tuning_indices = test_predictions_df.TUNE_IDX.unique()
     
     # Calculate testing set ORC for every Tuning Index, Window Index combination
     testing_set_ORCs = calc_test_ORC(test_predictions_df,list(range(1,85)),True,'Calculating testing set ORC')
     
+    # Calculate from-discharge testing set ORC for every Tuning Index, Window Index combination
+    from_discharge_testing_set_ORCs = calc_test_ORC(from_discharge_test_predictions_df,list(range(-84,0)),True,'Calculating testing set ORC from discharge')
+    
     # Calculate testing set Somers' D for every Tuning Index, Window Index combination
     testing_set_Somers_D = calc_test_Somers_D(test_predictions_df,list(range(1,85)),True,'Calculating testing set Somers D')
     
+    # Calculate from-discharge testing set Somers' D for every Tuning Index, Window Index combination
+    from_discharge_testing_set_Somers_D = calc_test_Somers_D(from_discharge_test_predictions_df,list(range(-84,0)),True,'Calculating testing set Somers D from discharge')
+    
     # Concatenate testing discrimination metrics, add resampling index and save
-    testing_set_discrimination = pd.concat([testing_set_ORCs,testing_set_Somers_D],ignore_index=True)
+    testing_set_discrimination = pd.concat([testing_set_ORCs,from_discharge_testing_set_ORCs,testing_set_Somers_D,from_discharge_testing_set_Somers_D],ignore_index=True)
     testing_set_discrimination['RESAMPLE_IDX'] = curr_rs_idx
     testing_set_discrimination.to_pickle(os.path.join(test_bs_dir,'test_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
     
     # Calculate testing set threshold-level calibration metrics for every Tuning Index, Window Index combination
     testing_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df,list(range(1,85)),True,'Calculating testing set threshold calibration metrics')
+    
+    # Calculate testing set from-discharge threshold-level calibration metrics for every Tuning Index, Window Index combination
+    from_discharge_testing_set_thresh_calibration = calc_test_thresh_calibration(from_discharge_test_predictions_df,list(range(-84,0)),True,'Calculating testing set threshold calibration metrics from discharge')    
+    
+    # Compile testing calibration from-admission and from-discharge metrics
+    testing_set_thresh_calibration = pd.concat([testing_set_thresh_calibration,from_discharge_testing_set_thresh_calibration],ignore_index=True)
     
     # Calculate macro-average calibration slopes across the thresholds
     macro_average_thresh_calibration = testing_set_thresh_calibration.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).VALUE.mean()
@@ -127,6 +149,19 @@ def main(array_task_id):
     testing_set_thresh_calibration['RESAMPLE_IDX'] = curr_rs_idx
     testing_set_thresh_calibration.to_pickle(os.path.join(test_bs_dir,'test_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
     
+    # Calculate calbration curves from admission
+    testing_set_thresh_calib_curves = calc_test_thresh_calib_curves(test_predictions_df,[1,2,3,4,5,6,12,24,36,48,60,72,84],True,'Calculating testing set threshold calibration curves')
+
+    # Calculate calbration curves from discharge
+    from_discharge_testing_set_thresh_calib_curves = calc_test_thresh_calib_curves(from_discharge_test_predictions_df,[-1,-2,-3,-4,-5,-6,-12,-24,-36,-48,-60,-72,-84],True,'Calculating testing set threshold calibration curves from discharge')
+    
+    # Compile testing calibration from-admission and from-discharge curves
+    testing_set_thresh_calib_curves = pd.concat([testing_set_thresh_calib_curves,from_discharge_testing_set_thresh_calib_curves],ignore_index=True)
+    
+    # Add resampling index and save
+    testing_set_thresh_calib_curves['RESAMPLE_IDX'] = curr_rs_idx
+    testing_set_thresh_calib_curves.to_pickle(os.path.join(test_bs_dir,'test_calib_curves_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+
 if __name__ == '__main__':
     
     array_task_id = int(sys.argv[1])

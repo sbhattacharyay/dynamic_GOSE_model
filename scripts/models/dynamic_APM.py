@@ -300,95 +300,42 @@ class GOSE_model(pl.LightningModule):
         
         optimizer = optim.Adam(params,lr=self.learning_rate)
         return optimizer
-    
-# dynamic GOSE prediction model modification for SHAP calculation
-class shap_GOSE_model(nn.Module):
-    def __init__(self,vocab_embed_matrix,W_ir,W_iz,W_in,W_hr,W_hz,W_hn,b_ir,b_iz,b_in,b_hr,b_hz,b_hn,hidden2gose,prediction_point,prob=False,thresh=False):
-        super(shap_GOSE_model, self).__init__()
-        
-        self.vocab_embed_matrix = vocab_embed_matrix
 
-        self.input_reset = nn.Linear(W_ir.shape[1],W_ir.shape[0])
-        self.input_reset.weight = nn.Parameter(W_ir)
-        self.input_reset.bias = nn.Parameter(b_ir)
-        
-        self.hidden_reset = nn.Linear(W_hr.shape[1],W_hr.shape[0])
-        self.hidden_reset.weight = nn.Parameter(W_hr)
-        self.hidden_reset.bias = nn.Parameter(b_hr)
-        
-        self.input_update = nn.Linear(W_iz.shape[1],W_iz.shape[0])
-        self.input_update.weight = nn.Parameter(W_iz)
-        self.input_update.bias = nn.Parameter(b_iz)
-        
-        self.hidden_update = nn.Linear(W_hz.shape[1],W_hz.shape[0])
-        self.hidden_update.weight = nn.Parameter(W_hz)
-        self.hidden_update.bias = nn.Parameter(b_hz)
-        
-        self.input_new = nn.Linear(W_in.shape[1],W_in.shape[0])
-        self.input_new.weight = nn.Parameter(W_in)
-        self.input_new.bias = nn.Parameter(b_in)
-        
-        self.hidden_new = nn.Linear(W_hn.shape[1],W_hn.shape[0])
-        self.hidden_new.weight = nn.Parameter(W_hn)
-        self.hidden_new.bias = nn.Parameter(b_hn)
-
-        self.hidden2gose = hidden2gose
-        self.prediction_point = prediction_point
-        self.prob = prob
-        self.thresh = thresh
-        
-    def forward(self, x):
-        
-        embed_x = F.relu(torch.div(torch.matmul(x,self.vocab_embed_matrix),x.sum(2)[:,:,None]))
-        
-        r1 = F.sigmoid(self.input_reset(embed_x[:,0,:]))
-        z1 = F.sigmoid(self.input_update(embed_x[:,0,:]))
-        n1 = F.tanh(self.input_new(embed_x[:,0,:]))
-        ht = ((1 - z1)*n1)
-        
-        if self.prediction_point > 1:
-            for curr_t in range(1,self.prediction_point):
-                rt = F.sigmoid(self.input_reset(embed_x[:,curr_t,:]) + self.hidden_reset(ht))
-                zt = F.sigmoid(self.input_update(embed_x[:,curr_t,:]) + self.hidden_update(ht))
-                nt = F.tanh(self.input_new(embed_x[:,curr_t,:]) + (rt*(self.hidden_reset(ht))))
-                ht = ((1 - zt)*nt) + (zt * ht)
-                
-        gose_out = self.hidden2gose(ht)
-        
-        if self.prob:
-            return F.softmax(gose_out,dim=1)
-        else:
-            return gose_out
-        
 # dynamic GOSE prediction model modification for TimeSHAP calculation
 class timeshap_GOSE_model(nn.Module):
-    def __init__(self,gose_model,threshold_idx,unknown_index,cols_to_add):
+    def __init__(self,gose_model,rnn_type,threshold_idx,unknown_index,cols_to_add):
         """
         Args:
             gose_model (LightningModule): trained dynAPM model from which to extract prediction layers
-            threshold_idx (int): index of the GOSE threshold to focus on for TimeSHAP
+            rnn_type (string, 'LSTM' or 'GRU'): Identify RNN architecture type
+            threshold_idx (int): index of the GOSE threshold to focus on for TimeSHAP. If -1, then represents expected GOSE outcome as TimeSHAP target
             unknown_index (int): Embedding layer index corresponding to '<unk>' token
             cols_to_add (int): Number of rows to add to embedding layer to account for unknown indices
         """
         super(timeshap_GOSE_model, self).__init__()
 
-        # Extract trained initial embedding layer and modify for LBM calculation 
+        # Extract trained initial embedding layer and modify for TimeSHAP calculation 
         self.embedX = copy.deepcopy(gose_model).embedX
         self.embedX.weight = nn.Parameter(torch.cat((self.embedX.weight,torch.tile(self.embedX.weight[unknown_index,:],(cols_to_add,1))),dim=0),requires_grad=False)
 
-        # Extract trained weighting embedding layer and modify for LBM calculation 
+        # Extract trained weighting embedding layer and modify for TimeSHAP calculation 
         self.embedW = copy.deepcopy(gose_model).embedW
         self.embedW.weight = nn.Parameter(torch.cat((self.embedW.weight,torch.tile(self.embedW.weight[unknown_index,:],(cols_to_add,1))),dim=0),requires_grad=False)
         
         # Combine 2 embedding layers into single transformation matrix
         self.comb_embedding = self.embedX.weight*torch.tile(torch.exp(self.embedW.weight),(1,self.embedX.weight.shape[1]))
         
-        # Extract trained RNN module and modify for LBM calculation
+        # Extract trained RNN module and modify for TimeSHAP calculation
         self.rnn_module = copy.deepcopy(gose_model).rnn_module
         self.rnn_module.batch_first=True
         
-        # Extract trained output layer and modify for LBM calculation
+        # Extract trained output layer and modify for TimeSHAP calculation
         self.hidden2gose = copy.deepcopy(gose_model).hidden2gose
+        
+        # Save inputted RNN type and ensure it is one of 2 accepted options
+        self.rnn_type = rnn_type
+        if self.rnn_type not in ['LSTM','GRU']:
+            raise ValueError("Invalid RNN type. Must be 'LSTM' or 'GRU'")
         
         # Save threshold idx of focus
         self.threshold_idx = threshold_idx
@@ -411,11 +358,84 @@ class timeshap_GOSE_model(nn.Module):
             curr_rnn_out, curr_rnn_hidden = self.rnn_module(curr_embedding_out, hidden_states)
             
         # -1 on hidden, to select the last layer of the stacked gru/lstm
-        assert torch.equal(curr_rnn_out[:,-1,:], curr_rnn_hidden[0][-1, :, :])
+        if self.rnn_type == 'LSTM':
+            assert torch.equal(curr_rnn_out[:,-1,:], curr_rnn_hidden[0][-1, :, :])
+        elif self.rnn_type == 'GRU':
+            assert torch.equal(curr_rnn_out[:,-1,:], curr_rnn_hidden[-1, :, :])
+        else:
+            raise ValueError("Invalid RNN type. Must be 'LSTM' or 'GRU'")
         
-        # Calculate output values for TimeSHAP
-        curr_gose_out = self.hidden2gose(curr_rnn_hidden[0][-1, :, :])
-        curr_gose_out = (1-F.softmax(curr_gose_out).cumsum(-1))[:,self.threshold_idx]
+        # Calculate output values for TimeSHAP based on target and RNN type
+        if self.rnn_type == 'LSTM':
+            curr_gose_out = F.softmax(self.hidden2gose(curr_rnn_hidden[0][-1, :, :]))
+        elif self.rnn_type == 'GRU':
+            curr_gose_out = F.softmax(self.hidden2gose(curr_rnn_hidden[-1, :, :]))
+        else:
+            raise ValueError("Invalid RNN type. Must be 'LSTM' or 'GRU'")
+
+        if self.threshold_idx == -1:
+            curr_gose_out = torch.matmul(curr_gose_out,torch.arange(curr_gose_out.shape[1],dtype=torch.float).unsqueeze(1))
+        else:
+            curr_gose_out = (1-curr_gose_out.cumsum(-1))[:,self.threshold_idx]
         
         # Return output value of focus and RNN hidden state
         return curr_gose_out, curr_rnn_hidden
+
+# # dynamic GOSE prediction model modification for SHAP calculation
+# class shap_GOSE_model(nn.Module):
+#     def __init__(self,vocab_embed_matrix,W_ir,W_iz,W_in,W_hr,W_hz,W_hn,b_ir,b_iz,b_in,b_hr,b_hz,b_hn,hidden2gose,prediction_point,prob=False,thresh=False):
+#         super(shap_GOSE_model, self).__init__()
+        
+#         self.vocab_embed_matrix = vocab_embed_matrix
+
+#         self.input_reset = nn.Linear(W_ir.shape[1],W_ir.shape[0])
+#         self.input_reset.weight = nn.Parameter(W_ir)
+#         self.input_reset.bias = nn.Parameter(b_ir)
+        
+#         self.hidden_reset = nn.Linear(W_hr.shape[1],W_hr.shape[0])
+#         self.hidden_reset.weight = nn.Parameter(W_hr)
+#         self.hidden_reset.bias = nn.Parameter(b_hr)
+        
+#         self.input_update = nn.Linear(W_iz.shape[1],W_iz.shape[0])
+#         self.input_update.weight = nn.Parameter(W_iz)
+#         self.input_update.bias = nn.Parameter(b_iz)
+        
+#         self.hidden_update = nn.Linear(W_hz.shape[1],W_hz.shape[0])
+#         self.hidden_update.weight = nn.Parameter(W_hz)
+#         self.hidden_update.bias = nn.Parameter(b_hz)
+        
+#         self.input_new = nn.Linear(W_in.shape[1],W_in.shape[0])
+#         self.input_new.weight = nn.Parameter(W_in)
+#         self.input_new.bias = nn.Parameter(b_in)
+        
+#         self.hidden_new = nn.Linear(W_hn.shape[1],W_hn.shape[0])
+#         self.hidden_new.weight = nn.Parameter(W_hn)
+#         self.hidden_new.bias = nn.Parameter(b_hn)
+
+#         self.hidden2gose = hidden2gose
+#         self.prediction_point = prediction_point
+#         self.prob = prob
+#         self.thresh = thresh
+        
+#     def forward(self, x):
+        
+#         embed_x = F.relu(torch.div(torch.matmul(x,self.vocab_embed_matrix),x.sum(2)[:,:,None]))
+        
+#         r1 = F.sigmoid(self.input_reset(embed_x[:,0,:]))
+#         z1 = F.sigmoid(self.input_update(embed_x[:,0,:]))
+#         n1 = F.tanh(self.input_new(embed_x[:,0,:]))
+#         ht = ((1 - z1)*n1)
+        
+#         if self.prediction_point > 1:
+#             for curr_t in range(1,self.prediction_point):
+#                 rt = F.sigmoid(self.input_reset(embed_x[:,curr_t,:]) + self.hidden_reset(ht))
+#                 zt = F.sigmoid(self.input_update(embed_x[:,curr_t,:]) + self.hidden_update(ht))
+#                 nt = F.tanh(self.input_new(embed_x[:,curr_t,:]) + (rt*(self.hidden_reset(ht))))
+#                 ht = ((1 - zt)*nt) + (zt * ht)
+                
+#         gose_out = self.hidden2gose(ht)
+        
+#         if self.prob:
+#             return F.softmax(gose_out,dim=1)
+#         else:
+#             return gose_out

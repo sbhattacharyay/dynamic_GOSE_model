@@ -9,6 +9,7 @@
 # II. Identify transition points in testing set predictions for TimeSHAP focus
 # III. Partition significant transition points for parallel TimeSHAP calculation
 # IV. Calculate average training set predictions per tuning configuration
+# V. Determine distribution of signficant transitions over time and entropy
 
 ### I. Initialisation
 # Fundamental libraries
@@ -60,7 +61,8 @@ from models.dynamic_APM import GOSE_model, timeshap_GOSE_model
 from functions.model_building import collate_batch, format_shap, format_tokens, format_time_tokens, df_to_multihot_matrix
 
 # Set version code
-VERSION = 'v7-0'
+#VERSION = 'v7-0'
+VERSION = 'v6-0'
 
 # Define model output directory based on version code
 model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+VERSION
@@ -69,7 +71,9 @@ model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+VERSION
 tokens_dir = '/home/sb2406/rds/hpc-work/tokens'
 
 # Load the current version tuning grid
-post_tuning_grid = pd.read_csv(os.path.join(model_dir,'post_dropout_tuning_grid.csv'))
+# post_tuning_grid = pd.read_csv(os.path.join(model_dir,'post_dropout_tuning_grid.csv'))
+tuning_grid = pd.read_csv(os.path.join(model_dir,'tuning_grid.csv'))
+post_tuning_grid = tuning_grid[tuning_grid.TUNE_IDX==135].reset_index(drop=True)
 
 # Load cross-validation split information to extract testing resamples
 cv_splits = pd.read_csv('../cross_validation_splits.csv')
@@ -87,7 +91,8 @@ os.makedirs(shap_dir,exist_ok=True)
 
 ### II. Identify transition points in testing set predictions for TimeSHAP focus
 # Load and filter testing set predictions
-test_predictions_df = pd.read_pickle(os.path.join(model_dir,'compiled_test_predictions.pkl'))
+# test_predictions_df = pd.read_pickle(os.path.join(model_dir,'compiled_test_predictions.pkl'))
+test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_test_predictions.csv'))
 test_predictions_df = test_predictions_df[(test_predictions_df.TUNE_IDX.isin(post_tuning_grid.TUNE_IDX))].reset_index(drop=True)
 
 # Remove logit columns
@@ -119,7 +124,8 @@ for curr_thresh in tqdm(thresh_labels,'Identifying transition points at each GOS
     for curr_below_GUPI in tqdm(below_thresh_preds.GUPI.unique(),'Iterating through patients below threshold: '+curr_thresh):
         curr_GUPI_preds = below_thresh_preds[below_thresh_preds.GUPI==curr_below_GUPI].reset_index(drop=True)
         for curr_tune_idx in curr_GUPI_preds.TUNE_IDX.unique():
-            curr_TI_preds = curr_GUPI_preds[curr_GUPI_preds.TUNE_IDX==curr_tune_idx][['GUPI','TUNE_IDX','WindowIdx','Pr('+curr_thresh+')']].reset_index(drop=True)
+            #curr_TI_preds = curr_GUPI_preds[curr_GUPI_preds.TUNE_IDX==curr_tune_idx][['FOLD','GUPI','TUNE_IDX','WindowIdx','Pr('+curr_thresh+')']].reset_index(drop=True)
+            curr_TI_preds = curr_GUPI_preds[curr_GUPI_preds.TUNE_IDX==curr_tune_idx][['REPEAT','FOLD','GUPI','TUNE_IDX','WindowIdx','Pr('+curr_thresh+')']].reset_index(drop=True)
             curr_TI_preds['Diff'] = curr_TI_preds['Pr('+curr_thresh+')'].diff()
             curr_TI_preds = curr_TI_preds[curr_TI_preds.Diff < 0].drop(columns=['Pr('+curr_thresh+')']).reset_index(drop=True)
             curr_TI_preds['Threshold'] = curr_thresh
@@ -129,7 +135,7 @@ for curr_thresh in tqdm(thresh_labels,'Identifying transition points at each GOS
     for curr_above_GUPI in tqdm(above_thresh_preds.GUPI.unique(),'Iterating through patients above threshold: '+curr_thresh):
         curr_GUPI_preds = above_thresh_preds[above_thresh_preds.GUPI==curr_above_GUPI].reset_index(drop=True)
         for curr_tune_idx in curr_GUPI_preds.TUNE_IDX.unique():
-            curr_TI_preds = curr_GUPI_preds[curr_GUPI_preds.TUNE_IDX==curr_tune_idx][['GUPI','TUNE_IDX','WindowIdx','Pr('+curr_thresh+')']].reset_index(drop=True)
+            curr_TI_preds = curr_GUPI_preds[curr_GUPI_preds.TUNE_IDX==curr_tune_idx][['REPEAT','FOLD','GUPI','TUNE_IDX','WindowIdx','Pr('+curr_thresh+')']].reset_index(drop=True)
             curr_TI_preds['Diff'] = curr_TI_preds['Pr('+curr_thresh+')'].diff()
             curr_TI_preds = curr_TI_preds[curr_TI_preds.Diff > 0].drop(columns=['Pr('+curr_thresh+')']).reset_index(drop=True)
             curr_TI_preds['Threshold'] = curr_thresh
@@ -146,7 +152,7 @@ diff_values = pd.read_pickle(os.path.join(shap_dir,'all_transition_points.pkl'))
 diff_values['Above'] = diff_values['Diff'] > 0
 
 # For each `TUNE_IDX`-`Threshold`-`Above` combination, find the quantile of differences
-quantile_diffs = diff_values.groupby(['TUNE_IDX','Threshold','Above'],as_index=False)['Diff'].aggregate({'lo':lambda x: np.quantile(x,.1),'median':np.median,'hi':lambda x: np.quantile(x,.9)}).reset_index(drop=True)
+quantile_diffs = diff_values.groupby(['TUNE_IDX','Threshold','Above'],as_index=False)['Diff'].aggregate({'lo':lambda x: np.quantile(x,.01),'median':np.median,'hi':lambda x: np.quantile(x,.99)}).reset_index(drop=True)
 
 # Arbitrarily define significant transitions by 90% quantile
 positive_diffs = quantile_diffs[quantile_diffs.Above].rename(columns={'hi':'Cutoff'}).drop(columns=['lo','median']).reset_index(drop=True)
@@ -165,16 +171,19 @@ sig_transitions.to_pickle(os.path.join(shap_dir,'significant_transition_points.p
 # Load significant points of prognostic transition
 sig_transitions = pd.read_pickle(os.path.join(shap_dir,'significant_transition_points.pkl'))
 
-# Add fold information for instance in testing set and sort
-sig_transitions = sig_transitions.merge(test_splits[['FOLD','GUPI']],how='left').sort_values(by=['FOLD','TUNE_IDX','GUPI','Threshold','WindowIdx']).reset_index(drop=True)
+# Isolate unique partition-GUPI-tuning configuration-window index combinations
+unique_transitions = sig_transitions[['REPEAT','FOLD','GUPI','TUNE_IDX','WindowIdx']].drop_duplicates().sort_values(by=['REPEAT','FOLD','TUNE_IDX','GUPI','WindowIdx']).reset_index(drop=True)
 
 # Partition evenly along number of available array tasks
 max_array_tasks = 10000
-s = [sig_transitions.shape[0] // max_array_tasks for _ in range(max_array_tasks)]
-s[:(sig_transitions.shape[0] - sum(s))] = [over+1 for over in s[:(sig_transitions.shape[0] - sum(s))]]    
+s = [unique_transitions.shape[0] // max_array_tasks for _ in range(max_array_tasks)]
+s[:(unique_transitions.shape[0] - sum(s))] = [over+1 for over in s[:(unique_transitions.shape[0] - sum(s))]]    
 end_idx = np.cumsum(s)
 start_idx = np.insert(end_idx[:-1],0,0)
-timeshap_partitions = [sig_transitions.iloc[start_idx[idx]:end_idx[idx],:].reset_index(drop=True) for idx in range(len(start_idx))]
+timeshap_partitions = [unique_transitions.iloc[start_idx[idx]:end_idx[idx],:].reset_index(drop=True) for idx in range(len(start_idx))]
+
+# Merge all significant transitions into list of partitions
+timeshap_partitions = [sig_transitions.merge(tp,how='inner') for tp in timeshap_partitions]
 
 # Save derived partitions
 cp.dump(timeshap_partitions, open(os.path.join(shap_dir,'timeSHAP_partitions.pkl'), "wb" ))
@@ -192,12 +201,18 @@ if not os.path.exists(os.path.join(shap_dir,'ckpt_info.pkl')):
     # Categorize model checkpoint files based on name
     ckpt_info = pd.DataFrame({'file':ckpt_files,
                               'TUNE_IDX':[int(re.search('tune(.*)/epoch=', curr_file).group(1)) for curr_file in ckpt_files],
-                              'VERSION':[re.search('model_outputs/(.*)/fold', curr_file).group(1) for curr_file in ckpt_files],
+#                               'VERSION':[re.search('model_outputs/(.*)/fold', curr_file).group(1) for curr_file in ckpt_files],
+                              'VERSION':[re.search('model_outputs/(.*)/repeat', curr_file).group(1) for curr_file in ckpt_files],
+                              'REPEAT':[int(re.search('/repeat(.*)/fold', curr_file).group(1)) for curr_file in ckpt_files],
                               'FOLD':[int(re.search('/fold(.*)/tune', curr_file).group(1)) for curr_file in ckpt_files],
-                              'VAL_ORC':[re.search('val_ORC=(.*).ckpt', curr_file).group(1) for curr_file in ckpt_files]
-                             }).sort_values(by=['FOLD','TUNE_IDX','VERSION']).reset_index(drop=True)
-    ckpt_info.VAL_ORC = ckpt_info.VAL_ORC.str.split('-').str[0].astype(float)
+#                               'VAL_ORC':[re.search('val_ORC=(.*).ckpt', curr_file).group(1) for curr_file in ckpt_files]
+                              'VAL_LOSS':[re.search('val_loss=(.*).ckpt', curr_file).group(1) for curr_file in ckpt_files]
+                             }).sort_values(by=['REPEAT','FOLD','TUNE_IDX','VERSION']).reset_index(drop=True)
+    ckpt_info.VAL_LOSS = ckpt_info.VAL_LOSS.str.split('-').str[0].astype(float)
     
+    # Isolate iterations that minimize loss   
+    ckpt_info = ckpt_info.loc[ckpt_info.groupby(['TUNE_IDX','VERSION','REPEAT','FOLD']).VAL_LOSS.idxmin()].reset_index(drop=True)
+
     # Save model checkpoint information dataframe
     ckpt_info.to_pickle(os.path.join(shap_dir,'ckpt_info.pkl'))
     
@@ -375,3 +390,34 @@ avg_event_preds = avg_event_preds[['TUNE_IDX','FOLD','Threshold','WindowIdx','Pr
 
 # Save average-event predictions into TimeSHAP directory
 avg_event_preds.to_pickle(os.path.join(shap_dir,'average_event_predictions.pkl'))
+
+### V. Determine distribution of signficant transitions over time and entropy
+## Determine distribution of significant prognostic transitions over time
+# Load significant points of prognostic transition
+sig_transitions = pd.read_pickle(os.path.join(shap_dir,'significant_transition_points.pkl'))
+
+# Remove significant transitions from the pre-calibrated zone
+sig_transitions = sig_transitions[sig_transitions.WindowIdx > 4].reset_index(drop=True)
+
+# Calculate count of number of transitions above and below threshold per window index
+sig_transitions_over_time = sig_transitions.groupby(['WindowIdx','Above'],as_index=False).GUPI.count()
+
+# Save count of significant transitions over time
+sig_transitions_over_time.to_csv(os.path.join(shap_dir,'significant_transition_count_over_time.csv'),index=False)
+
+## Calculate Shannon's Entropy over time
+# Load compiled testing set predictions
+test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_test_predictions.csv'))
+
+# Filter testing set predictions to top-performing model
+test_predictions_df = test_predictions_df[test_predictions_df.TUNE_IDX==135].reset_index(drop=True)
+
+# Calculate Shannon's Entropy based on predicted GOSE probability
+prob_cols = [col for col in test_predictions_df if col.startswith('Pr(GOSE=')]
+test_predictions_df['Entropy'] = stats.entropy(test_predictions_df[prob_cols],axis=1,base=2)
+
+# Summarise entropy values by `WindowIdx`
+summarised_entropy = test_predictions_df.groupby('WindowIdx',as_index=False)['Entropy'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+
+# Save summarised entropy values
+summarised_entropy.to_csv(os.path.join(model_dir,'summarised_entropy_values.csv'),index=False)

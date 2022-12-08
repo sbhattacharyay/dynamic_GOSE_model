@@ -217,11 +217,14 @@ def main(array_task_id):
     # Isolate unique combinations for expected GOSE contribution calculations
     unique_expected_GOSE_transitions = curr_transitions[['REPEAT','FOLD','GUPI','TUNE_IDX','WindowIdx']].drop_duplicates().reset_index(drop=True)
     
-    # Initialize empty list to compile TimeSHAP dataframes
-    compiled_expected_GOSE_ts = []
+    # # Initialize empty list to compile TimeSHAP dataframes
+    # compiled_expected_GOSE_ts = []
+
+    # Initialize empty list to compile TimeSHAP event dataframes
+    compiled_expected_GOSE_event_ts = []
     
-    # Initialize empty list to compile missed transitions
-    compiled_expected_GOSE_missed = []
+    # # Initialize empty list to compile missed transitions
+    # compiled_expected_GOSE_missed = []
     
     # Iterate through unique combinations and calculate TimeSHAP    
     for curr_uniq_row in tqdm(range(unique_expected_GOSE_transitions.shape[0]),'Iterating through unique combinations to calculate expected GOSE TimeSHAP'):
@@ -275,97 +278,150 @@ def main(array_task_id):
             # Prune timepoints based on tolerance of 0.15
             _,prun_idx = tsx.local_pruning(f_hs, filt_testing_multihot, {'tol': 0.15}, curr_avg_event, entity_uuid=None, entity_col=None, verbose=True)
 
-            # Calculate local feature-level TimeSHAP values after pruning
-            feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_avg_event.columns.to_list()}
-            ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_avg_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
+            # # Calculate local feature-level TimeSHAP values after pruning
+            # feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_avg_event.columns.to_list()}
+            # ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_avg_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
         
-            # Find features that exist within unpruned region
-            existing_features = np.asarray(curr_avg_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
+            # Calculate local event-level TimeSHAP values after pruning
+            event_dict = {'rs': 2022, 'nsamples': 32000}
+            ts_event_data = tsx.local_event(f_hs, filt_testing_multihot, event_dict, entity_uuid=None, entity_col=None, baseline=curr_avg_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
 
-            # Filter feature-level TimeSHAP values to existing features
-            ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
+            # # Find features that exist within unpruned region
+            # existing_features = np.asarray(curr_avg_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
 
-            # Add metadata to TimeSHAP feature dataframe
-            ts_feature_data['REPEAT'] = curr_repeat
-            ts_feature_data['FOLD'] = curr_fold
-            ts_feature_data['TUNE_IDX'] = curr_tune_idx
-            ts_feature_data['Threshold'] = 'ExpectedValue'
-            ts_feature_data['GUPI'] = curr_GUPI
-            ts_feature_data['WindowIdx'] = curr_wi
-            ts_feature_data['BaselineFeatures'] = 'Average'
-            #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
+            # # Filter feature-level TimeSHAP values to existing features
+            # ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
 
+            # # Add metadata to TimeSHAP feature dataframe
+            # ts_feature_data['REPEAT'] = curr_repeat
+            # ts_feature_data['FOLD'] = curr_fold
+            # ts_feature_data['TUNE_IDX'] = curr_tune_idx
+            # ts_feature_data['Threshold'] = 'ExpectedValue'
+            # ts_feature_data['GUPI'] = curr_GUPI
+            # ts_feature_data['WindowIdx'] = curr_wi
+            # ts_feature_data['BaselineFeatures'] = 'Average'
+            # #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
+
+            # Add metadata to TimeSHAP event dataframe
+            ts_event_data['REPEAT'] = curr_repeat
+            ts_event_data['FOLD'] = curr_fold
+            ts_event_data['TUNE_IDX'] = curr_tune_idx
+            ts_event_data['Threshold'] = 'ExpectedValue'
+            ts_event_data['GUPI'] = curr_GUPI
+            ts_event_data['WindowIdx'] = curr_wi
+            ts_event_data['BaselineFeatures'] = 'Average'
+            ts_event_data['PruneIdx'] = prun_idx
+
+            # #Append current TimeSHAP dataframe to compilation list
+            # compiled_expected_GOSE_ts.append(ts_feature_data)
+        
             #Append current TimeSHAP dataframe to compilation list
-            compiled_expected_GOSE_ts.append(ts_feature_data)
-        
+            compiled_expected_GOSE_event_ts.append(ts_event_data)
+
         except:
             # Second, try to calculate expected GOSE TimeSHAP values with zero event baseline
             try:                 
                 # Prune timepoints based on tolerance of 0.15
                 _,prun_idx = tsx.local_pruning(f_hs, filt_testing_multihot, {'tol': 0.15}, curr_zero_event, entity_uuid=None, entity_col=None, verbose=True)
 
-                # Calculate local feature-level TimeSHAP values after pruning
-                feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_zero_event.columns.to_list()}
-                ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_zero_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
-            
-                # Find features that exist within unpruned region
-                existing_features = np.asarray(curr_zero_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
-
-                # Filter feature-level TimeSHAP values to existing features
-                ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
-
-                # Add metadata to TimeSHAP feature dataframe
-                ts_feature_data['REPEAT'] = curr_repeat
-                ts_feature_data['FOLD'] = curr_fold
-                ts_feature_data['TUNE_IDX'] = curr_tune_idx
-                ts_feature_data['Threshold'] = 'ExpectedValue'
-                ts_feature_data['GUPI'] = curr_GUPI
-                ts_feature_data['WindowIdx'] = curr_wi
-                ts_feature_data['BaselineFeatures'] = 'Zero'
-                #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
-
-                #Append current TimeSHAP dataframe to compilation list
-                compiled_expected_GOSE_ts.append(ts_feature_data)
-            
-            except:
-                # Identify significant transitions for which TimeSHAP cannot be calculated
-                curr_missed_transition = unique_expected_GOSE_transitions.iloc[[curr_uniq_row]].reset_index(drop=True)
-
-                # Append to running list of missing transitions
-                compiled_expected_GOSE_missed.append(curr_missed_transition)
+                # # Calculate local feature-level TimeSHAP values after pruning
+                # feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_zero_event.columns.to_list()}
+                # ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_zero_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
                 
-    # If missed transitions exist, compile and save
-    if compiled_expected_GOSE_missed:
+                # Calculate local event-level TimeSHAP values after pruning
+                event_dict = {'rs': 2022, 'nsamples': 32000}
+                ts_event_data = tsx.local_event(f_hs, filt_testing_multihot, event_dict, entity_uuid=None, entity_col=None, baseline=curr_zero_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
+
+                # # Find features that exist within unpruned region
+                # existing_features = np.asarray(curr_zero_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
+
+                # # Filter feature-level TimeSHAP values to existing features
+                # ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
+
+                # # Add metadata to TimeSHAP feature dataframe
+                # ts_feature_data['REPEAT'] = curr_repeat
+                # ts_feature_data['FOLD'] = curr_fold
+                # ts_feature_data['TUNE_IDX'] = curr_tune_idx
+                # ts_feature_data['Threshold'] = 'ExpectedValue'
+                # ts_feature_data['GUPI'] = curr_GUPI
+                # ts_feature_data['WindowIdx'] = curr_wi
+                # ts_feature_data['BaselineFeatures'] = 'Zero'
+                # #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
+
+                # Add metadata to TimeSHAP event dataframe
+                ts_event_data['REPEAT'] = curr_repeat
+                ts_event_data['FOLD'] = curr_fold
+                ts_event_data['TUNE_IDX'] = curr_tune_idx
+                ts_event_data['Threshold'] = 'ExpectedValue'
+                ts_event_data['GUPI'] = curr_GUPI
+                ts_event_data['WindowIdx'] = curr_wi
+                ts_event_data['BaselineFeatures'] = 'Zero'
+                ts_event_data['PruneIdx'] = prun_idx
+
+                # #Append current TimeSHAP dataframe to compilation list
+                # compiled_expected_GOSE_ts.append(ts_feature_data)
+            
+                #Append current TimeSHAP dataframe to compilation list
+                compiled_expected_GOSE_event_ts.append(ts_event_data)
+
+            except:
+                
+                pass
+                
+                # # Identify significant transitions for which TimeSHAP cannot be calculated
+                # curr_missed_transition = unique_expected_GOSE_transitions.iloc[[curr_uniq_row]].reset_index(drop=True)
+
+                # # Append to running list of missing transitions
+                # compiled_expected_GOSE_missed.append(curr_missed_transition)
+                
+#     # If missed transitions exist, compile and save
+#     if compiled_expected_GOSE_missed:
         
-        # Compile list of missed transitions
-        compiled_expected_GOSE_missed = pd.concat(compiled_expected_GOSE_missed,ignore_index=True)
+#         # Compile list of missed transitions
+#         compiled_expected_GOSE_missed = pd.concat(compiled_expected_GOSE_missed,ignore_index=True)
         
-        # Save compiled missed transition values into SHAP subdirectory
-        compiled_expected_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'exp_GOSE_missing_transitions_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
-#         compiled_expected_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'missing_transitions_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
+#         # Save compiled missed transition values into SHAP subdirectory
+#         compiled_expected_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'exp_GOSE_missing_transitions_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
+# #         compiled_expected_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'missing_transitions_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
     
+#     # If TimeSHAP feature values exist, compile and save
+#     if compiled_expected_GOSE_ts:
+        
+#         # Compile list of TimeSHAP dataframes
+#         compiled_expected_GOSE_ts = pd.concat(compiled_expected_GOSE_ts,ignore_index=True)
+
+#         # Rename `Shapley Value` column
+#         compiled_expected_GOSE_ts = compiled_expected_GOSE_ts.rename(columns={'Shapley Value':'SHAP'})
+
+#         # Save compiled TimeSHAP values into SHAP subdirectory
+#         compiled_expected_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'exp_GOSE_timeSHAP_values_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
+# #         compiled_expected_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'timeSHAP_values_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
+
     # If TimeSHAP feature values exist, compile and save
-    if compiled_expected_GOSE_ts:
+    if compiled_expected_GOSE_event_ts:
         
         # Compile list of TimeSHAP dataframes
-        compiled_expected_GOSE_ts = pd.concat(compiled_expected_GOSE_ts,ignore_index=True)
+        compiled_expected_GOSE_event_ts = pd.concat(compiled_expected_GOSE_event_ts,ignore_index=True)
 
         # Rename `Shapley Value` column
-        compiled_expected_GOSE_ts = compiled_expected_GOSE_ts.rename(columns={'Shapley Value':'SHAP'})
+        compiled_expected_GOSE_event_ts = compiled_expected_GOSE_event_ts.rename(columns={'Shapley Value':'SHAP'})
 
         # Save compiled TimeSHAP values into SHAP subdirectory
-        compiled_expected_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'exp_GOSE_timeSHAP_values_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
-#         compiled_expected_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'timeSHAP_values_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
+        compiled_expected_GOSE_event_ts.to_pickle(os.path.join(sub_shap_dir,'exp_GOSE_event_timeSHAP_values_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
+#         compiled_expected_GOSE_event_ts.to_pickle(os.path.join(sub_shap_dir,'timeSHAP_values_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
 
     ## Calculate TimeSHAP values for prediction contributions to GOSE thresholds
     # Define list of possible GOSE thresholds
     thresh_labels = ['GOSE>1','GOSE>3','GOSE>4','GOSE>5','GOSE>6','GOSE>7']
     
     # Initialize empty list to compile TimeSHAP dataframes
-    compiled_threshold_GOSE_ts = []
+    # compiled_threshold_GOSE_ts = []
     
+    # Initialize empty list to compile TimeSHAP event dataframes
+    compiled_threshold_GOSE_event_ts = []
+
     # Initialize empty list to compile missed transitions
-    compiled_threshold_GOSE_missed = []
+    # compiled_threshold_GOSE_missed = []
     
     # Iterate through unique combinations and calculate TimeSHAP    
     for curr_trans_row in tqdm(range(curr_transitions.shape[0]),'Iterating through unique combinations to calculate threshold GOSE TimeSHAP'):
@@ -421,87 +477,141 @@ def main(array_task_id):
             # Prune timepoints based on tolerance of 0.025
             _,prun_idx = tsx.local_pruning(f_hs, filt_testing_multihot, {'tol': 0.025}, curr_avg_event, entity_uuid=None, entity_col=None, verbose=True)
 
-            # Calculate local feature-level TimeSHAP values after pruning
-            feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_avg_event.columns.to_list()}
-            ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_avg_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
+            # # Calculate local feature-level TimeSHAP values after pruning
+            # feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_avg_event.columns.to_list()}
+            # ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_avg_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
         
-            # Find features that exist within unpruned region
-            existing_features = np.asarray(curr_avg_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
+            # # Calculate local feature-level TimeSHAP values after pruning
+            # feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_avg_event.columns.to_list()}
+            # ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_avg_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
 
-            # Filter feature-level TimeSHAP values to existing features
-            ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
+            # Calculate local event-level TimeSHAP values after pruning
+            event_dict = {'rs': 2022, 'nsamples': 32000}
+            ts_event_data = tsx.local_event(f_hs, filt_testing_multihot, event_dict, entity_uuid=None, entity_col=None, baseline=curr_avg_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
 
-            # Add metadata to TimeSHAP feature dataframe
-            ts_feature_data['REPEAT'] = curr_repeat
-            ts_feature_data['FOLD'] = curr_fold
-            ts_feature_data['TUNE_IDX'] = curr_tune_idx
-            ts_feature_data['Threshold'] = curr_thresh
-            ts_feature_data['GUPI'] = curr_GUPI
-            ts_feature_data['WindowIdx'] = curr_wi
-            ts_feature_data['BaselineFeatures'] = 'Average'
-            #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
+            # # Find features that exist within unpruned region
+            # existing_features = np.asarray(curr_avg_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
 
+            # # Filter feature-level TimeSHAP values to existing features
+            # ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
+
+            # # Add metadata to TimeSHAP feature dataframe
+            # ts_feature_data['REPEAT'] = curr_repeat
+            # ts_feature_data['FOLD'] = curr_fold
+            # ts_feature_data['TUNE_IDX'] = curr_tune_idx
+            # ts_feature_data['Threshold'] = curr_thresh
+            # ts_feature_data['GUPI'] = curr_GUPI
+            # ts_feature_data['WindowIdx'] = curr_wi
+            # ts_feature_data['BaselineFeatures'] = 'Average'
+            # #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
+
+            # Add metadata to TimeSHAP event dataframe
+            ts_event_data['REPEAT'] = curr_repeat
+            ts_event_data['FOLD'] = curr_fold
+            ts_event_data['TUNE_IDX'] = curr_tune_idx
+            ts_event_data['Threshold'] = curr_thresh
+            ts_event_data['GUPI'] = curr_GUPI
+            ts_event_data['WindowIdx'] = curr_wi
+            ts_event_data['BaselineFeatures'] = 'Average'
+            ts_event_data['PruneIdx'] = prun_idx
+
+            # #Append current TimeSHAP dataframe to compilation list
+            # compiled_threshold_GOSE_ts.append(ts_feature_data)
+        
             #Append current TimeSHAP dataframe to compilation list
-            compiled_threshold_GOSE_ts.append(ts_feature_data)
-        
+            compiled_threshold_GOSE_event_ts.append(ts_event_data)
+
         except:
             # Second, try to calculate threshold GOSE TimeSHAP values with zero event baseline
             try:                 
                 # Prune timepoints based on tolerance of 0.025
                 _,prun_idx = tsx.local_pruning(f_hs, filt_testing_multihot, {'tol': 0.025}, curr_zero_event, entity_uuid=None, entity_col=None, verbose=True)
 
-                # Calculate local feature-level TimeSHAP values after pruning
-                feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_zero_event.columns.to_list()}
-                ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_zero_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
+                # # Calculate local feature-level TimeSHAP values after pruning
+                # feature_dict = {'rs': 2022, 'nsamples': 3200, 'feature_names': curr_zero_event.columns.to_list()}
+                # ts_feature_data = tsx.local_feat(f_hs, filt_testing_multihot, feature_dict, entity_uuid=None, entity_col=None, baseline=curr_zero_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
             
-                # Find features that exist within unpruned region
-                existing_features = np.asarray(curr_zero_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
+                # Calculate local event-level TimeSHAP values after pruning
+                event_dict = {'rs': 2022, 'nsamples': 32000}
+                ts_event_data = tsx.local_event(f_hs, filt_testing_multihot, event_dict, entity_uuid=None, entity_col=None, baseline=curr_zero_event, pruned_idx=filt_testing_multihot.shape[1]+prun_idx)
 
-                # Filter feature-level TimeSHAP values to existing features
-                ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
+                # # Find features that exist within unpruned region
+                # existing_features = np.asarray(curr_zero_event.columns.to_list())[filt_testing_multihot[:,filt_testing_multihot.shape[1]+prun_idx:,:].sum(1).squeeze(0) > 0]
 
-                # Add metadata to TimeSHAP feature dataframe
-                ts_feature_data['REPEAT'] = curr_repeat
-                ts_feature_data['FOLD'] = curr_fold
-                ts_feature_data['TUNE_IDX'] = curr_tune_idx
-                ts_feature_data['Threshold'] = curr_thresh
-                ts_feature_data['GUPI'] = curr_GUPI
-                ts_feature_data['WindowIdx'] = curr_wi
-                ts_feature_data['BaselineFeatures'] = 'Zero'
-                #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
+                # # Filter feature-level TimeSHAP values to existing features
+                # ts_feature_data = ts_feature_data[ts_feature_data.Feature.isin(existing_features)].reset_index(drop=True)
 
+                # # Add metadata to TimeSHAP feature dataframe
+                # ts_feature_data['REPEAT'] = curr_repeat
+                # ts_feature_data['FOLD'] = curr_fold
+                # ts_feature_data['TUNE_IDX'] = curr_tune_idx
+                # ts_feature_data['Threshold'] = curr_thresh
+                # ts_feature_data['GUPI'] = curr_GUPI
+                # ts_feature_data['WindowIdx'] = curr_wi
+                # ts_feature_data['BaselineFeatures'] = 'Zero'
+                # #ts_feature_data = ts_feature_data.merge(curr_transitions,how='left')
+
+                # Add metadata to TimeSHAP event dataframe
+                ts_event_data['REPEAT'] = curr_repeat
+                ts_event_data['FOLD'] = curr_fold
+                ts_event_data['TUNE_IDX'] = curr_tune_idx
+                ts_event_data['Threshold'] = curr_thresh
+                ts_event_data['GUPI'] = curr_GUPI
+                ts_event_data['WindowIdx'] = curr_wi
+                ts_event_data['BaselineFeatures'] = 'Zero'
+                ts_event_data['PruneIdx'] = prun_idx
+
+                # #Append current TimeSHAP dataframe to compilation list
+                # compiled_threshold_GOSE_ts.append(ts_feature_data)
+            
                 #Append current TimeSHAP dataframe to compilation list
-                compiled_threshold_GOSE_ts.append(ts_feature_data)
-            
-            except:
-                # Identify significant transitions for which TimeSHAP cannot be calculated
-                curr_missed_transition = curr_transitions.iloc[[curr_trans_row]].reset_index(drop=True)
+                compiled_threshold_GOSE_event_ts.append(ts_event_data)
 
-                # Append to running list of missing transitions
-                compiled_threshold_GOSE_missed.append(curr_missed_transition)
+            except:
+
+                pass
+
+                # # Identify significant transitions for which TimeSHAP cannot be calculated
+                # curr_missed_transition = curr_transitions.iloc[[curr_trans_row]].reset_index(drop=True)
+
+                # # Append to running list of missing transitions
+                # compiled_threshold_GOSE_missed.append(curr_missed_transition)
                 
-    # If missed transitions exist, compile and save
-    if compiled_threshold_GOSE_missed:
+#     # If missed transitions exist, compile and save
+#     if compiled_threshold_GOSE_missed:
         
-        # Compile list of missed transitions
-        compiled_threshold_GOSE_missed = pd.concat(compiled_threshold_GOSE_missed,ignore_index=True)
+#         # Compile list of missed transitions
+#         compiled_threshold_GOSE_missed = pd.concat(compiled_threshold_GOSE_missed,ignore_index=True)
         
-        # Save compiled missed transition values into SHAP subdirectory
-        compiled_threshold_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'thresh_GOSE_missing_transitions_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
-#         compiled_threshold_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'missing_transitions_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
+#         # Save compiled missed transition values into SHAP subdirectory
+#         compiled_threshold_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'thresh_GOSE_missing_transitions_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
+# #         compiled_threshold_GOSE_missed.to_pickle(os.path.join(missed_transition_dir,'missing_transitions_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
     
+#     # If TimeSHAP feature values exist, compile and save
+#     if compiled_threshold_GOSE_ts:
+        
+#         # # Compile list of TimeSHAP dataframes
+#         # compiled_threshold_GOSE_ts = pd.concat(compiled_threshold_GOSE_ts,ignore_index=True)
+
+#         # # Rename `Shapley Value` column
+#         # compiled_threshold_GOSE_ts = compiled_threshold_GOSE_ts.rename(columns={'Shapley Value':'SHAP'})
+
+#         # Save compiled TimeSHAP values into SHAP subdirectory
+#         compiled_threshold_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'thresh_GOSE_timeSHAP_values_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
+# #         compiled_threshold_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'timeSHAP_values_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
+
     # If TimeSHAP feature values exist, compile and save
-    if compiled_threshold_GOSE_ts:
+    if compiled_threshold_GOSE_event_ts:
         
         # Compile list of TimeSHAP dataframes
-        compiled_threshold_GOSE_ts = pd.concat(compiled_threshold_GOSE_ts,ignore_index=True)
+        compiled_threshold_GOSE_event_ts = pd.concat(compiled_threshold_GOSE_event_ts,ignore_index=True)
 
         # Rename `Shapley Value` column
-        compiled_threshold_GOSE_ts = compiled_threshold_GOSE_ts.rename(columns={'Shapley Value':'SHAP'})
+        compiled_threshold_GOSE_event_ts = compiled_threshold_GOSE_event_ts.rename(columns={'Shapley Value':'SHAP'})
 
         # Save compiled TimeSHAP values into SHAP subdirectory
-        compiled_threshold_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'thresh_GOSE_timeSHAP_values_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
-#         compiled_threshold_GOSE_ts.to_pickle(os.path.join(sub_shap_dir,'timeSHAP_values_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
+        compiled_threshold_GOSE_event_ts.to_pickle(os.path.join(sub_shap_dir,'thresh_GOSE_event_timeSHAP_values_partition_idx_'+str(array_task_id).zfill(4)+'.pkl'))
+#         compiled_threshold_GOSE_event_ts.to_pickle(os.path.join(sub_shap_dir,'timeSHAP_values_partition_idx_'+str(remaining_partition_indices[array_task_id]).zfill(4)+'.pkl'))
 
 if __name__ == '__main__':
     

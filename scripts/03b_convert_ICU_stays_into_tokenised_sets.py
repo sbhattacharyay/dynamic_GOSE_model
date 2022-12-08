@@ -11,6 +11,7 @@
 # IV. Tokenise numeric predictors and place into study windows
 # V. Categorize tokens from dictionaries for characterization
 # VI. Create full list of tokens for exploration
+# VII. Post-hoc: collect and categorise tokens from v6-0
 
 ### I. Initialisation
 # Fundamental libraries
@@ -42,7 +43,7 @@ from sklearn.preprocessing import KBinsDiscretizer
 from torchtext.vocab import vocab, Vocab
 
 # Custom methods
-from functions.token_preparation import categorizer, clean_token_rows, get_token_info, count_token_incidences
+from functions.token_preparation import categorizer, clean_token_rows, get_token_info, count_token_incidences, get_legacy_token_info
 
 # Load cross-validation splits of study population
 cv_splits = pd.read_csv('../cross_validation_splits.csv')
@@ -727,3 +728,258 @@ full_token_keys.OrderIdx[(full_token_keys.BaseToken.isin(exception_vars))&(full_
 ## Save full token list dataframe if it manually edited version does not yet exist
 if not os.path.exists('/home/sb2406/rds/hpc-work/tokens/full_token_keys.xlsx'):
     full_token_keys.to_excel('/home/sb2406/rds/hpc-work/tokens/full_token_keys.xlsx',index=False)
+
+### VII. Post-hoc: collect and categorise tokens from v6-0
+## Initialisation
+# Set version code
+VERSION = 'v6-0'
+
+# Define model output directory
+model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+VERSION
+
+## Determine and save v6-0 cross-validation partitions
+# Create vector of possible GOSE labels
+gose_labels = ['1', '2_or_3', '4', '5', '6', '7', '8']
+
+# Load testing set compiled predictions
+test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_test_predictions.csv'))
+
+# Isolate unique combinations of GUPI-REPEAT-FOLD
+study_test_partitions = test_predictions_df[['GUPI','TrueLabel','REPEAT','FOLD']].drop_duplicates(ignore_index=True)
+study_test_partitions['SET'] = 'test'
+
+# Convert `TrueLabel` index to GOSE label
+study_test_partitions['GOSE'] = study_test_partitions.TrueLabel.apply(lambda x: gose_labels[int(x)])
+
+# Drop and reorder columns to match `cv_splits` format
+study_test_partitions = study_test_partitions[['REPEAT', 'FOLD', 'SET', 'GUPI', 'GOSE']]
+
+# Load validation set compiled predictions
+val_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_val_predictions.csv'))
+
+# Isolate unique combinations of GUPI-REPEAT-FOLD
+study_val_partitions = val_predictions_df[['GUPI','TrueLabel','REPEAT','FOLD']].drop_duplicates(ignore_index=True)
+study_val_partitions['SET'] = 'val'
+
+# Convert `TrueLabel` index to GOSE label
+study_val_partitions['GOSE'] = study_val_partitions.TrueLabel.apply(lambda x: gose_labels[int(x)])
+
+# Drop and reorder columns to match `cv_splits` format
+study_val_partitions = study_val_partitions[['REPEAT', 'FOLD', 'SET', 'GUPI', 'GOSE']]
+
+# Concatenate the testing and validation set partitions
+study_test_val_partitions = pd.concat([study_test_partitions,study_val_partitions],ignore_index=True)
+
+# Create list of unique patients in the study
+uniq_GUPIs = study_test_val_partitions.GUPI.unique()
+
+# Iterate through CV partitions and determine patients who were in the training set
+uniq_CV_partitions = study_test_val_partitions[['REPEAT','FOLD']].drop_duplicates(ignore_index=True)
+study_train_partitions = []
+for curr_partition in tqdm(range(uniq_CV_partitions.shape[0]),'Iterating through CV partitions to determine training set population'):
+
+    # Extract current CV partition parameters
+    curr_repeat = uniq_CV_partitions.REPEAT[curr_partition]
+    curr_fold = uniq_CV_partitions.FOLD[curr_partition]
+
+    # Determine GUPIs that are in the testing or validation set of this partition
+    test_val_GUPIs = study_test_val_partitions[(study_test_val_partitions.REPEAT == curr_repeat)&(study_test_val_partitions.FOLD == curr_fold)].GUPI.tolist()
+
+    # Extract remaining GUPIs and their GOSE labels
+    curr_train_partitions = study_test_val_partitions[~study_test_val_partitions.GUPI.isin(test_val_GUPIs)][['GUPI','GOSE']].drop_duplicates(ignore_index=True)
+
+    # Add current repeat, fold, and set information
+    curr_train_partitions['REPEAT'] = curr_repeat
+    curr_train_partitions['FOLD'] = curr_fold
+    curr_train_partitions['SET'] = 'train'
+
+    # Rectify order of columns and append to running list
+    curr_train_partitions = curr_train_partitions[['REPEAT', 'FOLD', 'SET', 'GUPI', 'GOSE']]
+    study_train_partitions.append(curr_train_partitions)
+
+study_train_partitions = pd.concat(study_train_partitions,ignore_index=True)
+
+# Concatenate testing/validation set partitions with the training set partitions to form legacy CV splits dataframe
+legacy_cv_splits = pd.concat([study_test_val_partitions,study_train_partitions],ignore_index=True).sort_values(by=['REPEAT','FOLD','SET','GUPI'],ignore_index=True)
+
+# Save legacy CV splits dataframe
+legacy_cv_splits.to_csv('../legacy_cross_validation_splits.csv',index=False)
+
+## Create a dictionary of all available tokens in version v6-0
+# Identify all token dictionary files in the tokens directory
+legacy_vocab_files = []
+for path in Path('/home/sb2406/rds/hpc-work/tokens').rglob('from_adm_strategy_abs_token_dictionary.pkl'):
+    legacy_vocab_files.append(str(path.resolve()))
+
+# Load and concatenate all legacy tokens
+legacy_tokens = [cp.load(open(f,"rb")).get_itos() for f in tqdm(legacy_vocab_files,'Loading tokens from all vocab files in v6-0')]
+
+# Flatten list of token lists
+legacy_tokens = np.unique(list(itertools.chain.from_iterable(legacy_tokens)))
+
+# Initialise dataframe
+legacy_full_token_keys = pd.DataFrame({'Token':legacy_tokens})
+
+# Determine whether tokens are baseline
+legacy_full_token_keys['Baseline'] = legacy_full_token_keys['Token'].str.startswith('Baseline')
+
+# Determine whether tokens are numeric
+legacy_full_token_keys['Numeric'] = legacy_full_token_keys['Token'].str.contains('_BIN')
+
+# Determine wheter tokens represent missing values
+legacy_full_token_keys['Missing'] = ((legacy_full_token_keys.Numeric)&(legacy_full_token_keys['Token'].str.endswith('_BIN_missing')))|((~legacy_full_token_keys.Numeric)&(legacy_full_token_keys['Token'].str.endswith('_NA')))
+
+# Create empty column for predictor base token
+legacy_full_token_keys['BaseToken'] = ''
+
+# For numeric tokens, extract the portion of the string before '_BIN' as the BaseToken
+legacy_full_token_keys.BaseToken[legacy_full_token_keys.Numeric] = legacy_full_token_keys.Token[legacy_full_token_keys.Numeric].str.replace('\\_BIN.*','',1,regex=True)
+
+# For non-numeric tokens, extract everything before the final underscore, if one exists, as the BaseToken
+legacy_full_token_keys.BaseToken[~legacy_full_token_keys.Numeric] = legacy_full_token_keys.Token[~legacy_full_token_keys.Numeric].str.replace('_[^_]*$','',1,regex=True)
+
+# For baseline tokens, remove the "Baseline" prefix in the BaseToken
+legacy_full_token_keys.BaseToken[legacy_full_token_keys.Baseline] = legacy_full_token_keys.BaseToken[legacy_full_token_keys.Baseline].str.replace('Baseline','',1,regex=False)
+
+# Remove underscores from `BaseToken` values if they stil exist
+legacy_full_token_keys.BaseToken = legacy_full_token_keys.BaseToken.str.replace('_','')
+
+## Compare v6-0 dictionary `BaseTokens` with previously categorised `BaseTokens`
+# Load old study corrected `BaseToken` categorization key
+old_token_dictionary = pd.read_excel('/home/sb2406/rds/hpc-work/tokens/copy_old_token_dictionary.xlsx')
+old_token_dictionary.BaseToken = old_token_dictionary.BaseToken.str.replace('_','')
+old_token_dictionary['BaseToken'] = old_token_dictionary['BaseToken'].fillna('')
+
+# Extract `BaseToken` characteristics from old token dictionary
+old_base_token_keys = old_token_dictionary[['BaseToken','ICUIntervention','ClinicianInput','Type']].drop_duplicates(ignore_index=True)
+
+# Merge old base token key information to dataframe version of vocabulary
+legacy_full_token_keys = legacy_full_token_keys.merge(old_base_token_keys,how='left')
+
+# Fix instances of variables not in original set
+legacy_full_token_keys['ICUIntervention'] = legacy_full_token_keys['ICUIntervention'].fillna(value=False)
+legacy_full_token_keys['ClinicianInput'] = legacy_full_token_keys['ClinicianInput'].fillna(value=False)
+legacy_full_token_keys['Type'] = legacy_full_token_keys['Type'].fillna('Miscellaneous')
+
+# Load new `BaseToken` dictionary to add `Ordered` and `Binary` columns
+base_token_key = pd.read_excel('/home/sb2406/rds/hpc-work/tokens/base_token_keys.xlsx')
+base_token_key['BaseToken'] = base_token_key['BaseToken'].fillna('')
+base_token_key = base_token_key[['BaseToken','Ordered','Binary']]
+base_token_key.BaseToken[base_token_key.BaseToken.str.startswith('Medication')] = base_token_key.BaseToken[base_token_key.BaseToken.str.startswith('Medication')].str.replace('Medication','')
+
+# Merge new base token key information to dataframe version of vocabulary to get ordered and binary columns
+legacy_full_token_keys = legacy_full_token_keys.merge(base_token_key,how='left')
+
+# If variable is numeric and ordered indicator is missing, set to true
+legacy_full_token_keys.Ordered[(legacy_full_token_keys.Ordered.isna())&(legacy_full_token_keys.Numeric)] = True
+legacy_full_token_keys.Baseline[(legacy_full_token_keys.Baseline.isna())&(legacy_full_token_keys.Numeric)] = False
+
+# Save legacy `BaseToken` dictionary
+legacy_full_token_keys = legacy_full_token_keys[['Token','BaseToken','Missing','Numeric','Baseline','Ordered','Binary','ICUIntervention','ClinicianInput','Type']]
+legacy_full_token_keys.to_excel('/home/sb2406/rds/hpc-work/tokens/pre_check_legacy_full_token_keys.xlsx',index=False)
+
+# Load manually corrected legacy `BaseToken` dictionary
+legacy_full_token_keys = pd.read_excel('/home/sb2406/rds/hpc-work/tokens/legacy_full_token_keys.xlsx')
+
+## Categorize tokens from v6-0 dictionaries for characterization
+# Iterate through unique CV partitions
+legacy_cv_splits = pd.read_csv('../legacy_cross_validation_splits.csv')
+uniq_CV_partitions = legacy_cv_splits[['REPEAT','FOLD']].drop_duplicates(ignore_index=True)
+for curr_partition in tqdm(range(uniq_CV_partitions.shape[0]),'Iterating through CV partitions for token categorization'):
+
+    # Extract current CV partition parameters
+    curr_repeat = uniq_CV_partitions.REPEAT[curr_partition]
+    curr_fold = uniq_CV_partitions.FOLD[curr_partition]
+
+    # Create a subdirectory for the current fold
+    fold_dir = os.path.join(tokens_dir,'repeat'+str(curr_repeat).zfill(2),'fold'+str(curr_fold))
+
+    ## Extract current training, validation, and testing set GUPIs
+    curr_fold_splits = legacy_cv_splits[(legacy_cv_splits.FOLD==curr_fold)&(legacy_cv_splits.REPEAT==curr_repeat)].reset_index(drop=True)
+    curr_train_GUPIs = curr_fold_splits[curr_fold_splits.SET=='train'].GUPI.unique()
+    curr_val_GUPIs = curr_fold_splits[curr_fold_splits.SET=='val'].GUPI.unique()
+    curr_test_GUPIs = curr_fold_splits[curr_fold_splits.SET=='test'].GUPI.unique()
+
+    ## Categorize token vocabulary from current fold
+    # Load current fold vocabulary
+    curr_vocab = cp.load(open(os.path.join(fold_dir,'from_adm_strategy_abs_token_dictionary.pkl'),"rb"))
+
+    # Create dataframe version of vocabulary
+    curr_vocab_df = pd.DataFrame({'VocabIndex':list(range(len(curr_vocab))),'Token':curr_vocab.get_itos()})
+
+    # Determine whether tokens are baseline
+    curr_vocab_df['Baseline'] = curr_vocab_df['Token'].str.startswith('Baseline')
+
+    # Determine whether tokens are numeric
+    curr_vocab_df['Numeric'] = curr_vocab_df['Token'].str.contains('_BIN')
+
+    # Determine wheter tokens represent missing values
+    curr_vocab_df['Missing'] = ((curr_vocab_df.Numeric)&(curr_vocab_df['Token'].str.endswith('_BIN_missing')))|((~curr_vocab_df.Numeric)&(curr_vocab_df['Token'].str.endswith('_NA')))
+
+    # Create empty column for predictor base token
+    curr_vocab_df['BaseToken'] = ''
+
+    # For numeric tokens, extract the portion of the string before '_BIN' as the BaseToken
+    curr_vocab_df.BaseToken[curr_vocab_df.Numeric] = curr_vocab_df.Token[curr_vocab_df.Numeric].str.replace('\\_BIN.*','',1,regex=True)
+
+    # For non-numeric tokens, extract everything before the final underscore, if one exists, as the BaseToken
+    curr_vocab_df.BaseToken[~curr_vocab_df.Numeric] = curr_vocab_df.Token[~curr_vocab_df.Numeric].str.replace('_[^_]*$','',1,regex=True)
+
+    # For baseline tokens, remove the "Baseline" prefix in the BaseToken
+    curr_vocab_df.BaseToken[curr_vocab_df.Baseline] = curr_vocab_df.BaseToken[curr_vocab_df.Baseline].str.replace('Baseline','',1,regex=False)
+
+    # Remove underscores from `BaseToken` values if they stil exist
+    curr_vocab_df.BaseToken = curr_vocab_df.BaseToken.str.replace('_','')
+
+    # Load manually corrected legacy `Token` categorization key
+    legacy_full_token_keys = pd.read_excel('/home/sb2406/rds/hpc-work/tokens/legacy_full_token_keys.xlsx')
+    legacy_full_token_keys['BaseToken'] = legacy_full_token_keys['BaseToken'].fillna('')
+
+    # Merge base token key information to dataframe version of vocabulary
+    curr_vocab_df = curr_vocab_df.merge(legacy_full_token_keys[['BaseToken','Type','Ordered','Binary','ICUIntervention','ClinicianInput']].drop_duplicates(ignore_index=True),how='left')
+
+    # Load index sets for current fold
+    train_inidices = pd.read_pickle(os.path.join(fold_dir,'from_adm_strategy_abs_training_indices.pkl'))
+    val_inidices = pd.read_pickle(os.path.join(fold_dir,'from_adm_strategy_abs_validation_indices.pkl'))
+    test_inidices = pd.read_pickle(os.path.join(fold_dir,'from_adm_strategy_abs_testing_indices.pkl'))
+
+    # Add set indicator and combine index sets for current fold
+    train_inidices['Set'] = 'train'
+    val_inidices['Set'] = 'val'
+    test_inidices['Set'] = 'test'
+    indices_df = pd.concat([train_inidices,val_inidices,test_inidices],ignore_index=True)
+
+    # Partition training indices among cores and calculate token info in parallel
+    s = [indices_df.shape[0] // NUM_CORES for _ in range(NUM_CORES)]
+    s[:(indices_df.shape[0] - sum(s))] = [over+1 for over in s[:(indices_df.shape[0] - sum(s))]]
+    end_idx = np.cumsum(s)
+    start_idx = np.insert(end_idx[:-1],0,0)
+    index_splits = [(indices_df.iloc[start_idx[idx]:end_idx[idx],:].reset_index(drop=True),curr_vocab_df,False,True,'Characterising tokens in study windows for repeat '+str(curr_repeat)+' and fold '+str(curr_fold)) for idx in range(len(start_idx))]
+    with multiprocessing.Pool(NUM_CORES) as pool:
+        study_window_token_info = pd.concat(pool.starmap(get_legacy_token_info, index_splits),ignore_index=True)
+
+    # Save calculated token information into current fold directory
+    study_window_token_info.to_pickle(os.path.join(fold_dir,'token_type_counts.pkl'))
+
+    # Partition training indices among cores and calculate token incidence info in parallel
+    s = [len(indices_df.GUPI.unique()) // NUM_CORES for _ in range(NUM_CORES)]
+    s[:(len(indices_df.GUPI.unique()) - sum(s))] = [over+1 for over in s[:(len(indices_df.GUPI.unique()) - sum(s))]]
+    end_idx = np.cumsum(s)
+    start_idx = np.insert(end_idx[:-1],0,0)
+    index_splits = [(indices_df[indices_df.GUPI.isin(indices_df.GUPI.unique()[start_idx[idx]:end_idx[idx]])].reset_index(drop=True),curr_vocab,curr_vocab_df,False,True,'Counting the incidences of tokens for repeat '+str(curr_repeat)+' and fold '+str(curr_fold)) for idx in range(len(start_idx))]
+    with multiprocessing.Pool(NUM_CORES) as pool:
+        token_patient_incidences = pd.concat(pool.starmap(count_token_incidences, index_splits),ignore_index=True)
+
+    # Save token incidence information into current fold directory
+    token_patient_incidences['Repeat'] = curr_repeat
+    token_patient_incidences['Fold'] = curr_fold
+    token_patient_incidences.to_pickle(os.path.join(fold_dir,'token_incidences_per_patient.pkl'))
+
+#     # Calculate number of unique patients per non-missing token
+#     patients_per_token = token_patient_incidences.groupby('Token',as_index=False).GUPI.count().sort_values(by=['GUPI','Token'],ascending=[False,True]).reset_index(drop=True).rename(columns={'GUPI':'PatientCount'})
+    
+#     # Calculate number of unique non-missing tokens per patient
+#     unique_tokens_per_patient = token_patient_incidences.groupby('GUPI',as_index=False).Token.count().sort_values(by=['Token','GUPI'],ascending=[False,True]).reset_index(drop=True).rename(columns={'Token':'UniqueTokenCount'})
+    
+#     # Calculate total number of instances per token
+#     instances_per_token = token_patient_incidences.groupby('Token',as_index=False).Count.sum().sort_values(by=['Count','Token'],ascending=[False,True]).reset_index(drop=True).rename(columns={'Count':'TotalCount'})

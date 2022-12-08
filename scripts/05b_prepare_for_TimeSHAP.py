@@ -9,6 +9,7 @@
 # II. Identify transition points in testing set predictions for TimeSHAP focus
 # III. Partition significant transition points for parallel TimeSHAP calculation
 # IV. Calculate average training set predictions per tuning configuration
+# V. Determine distribution of signficant transitions over time and entropy
 
 ### I. Initialisation
 # Fundamental libraries
@@ -389,3 +390,34 @@ avg_event_preds = avg_event_preds[['TUNE_IDX','FOLD','Threshold','WindowIdx','Pr
 
 # Save average-event predictions into TimeSHAP directory
 avg_event_preds.to_pickle(os.path.join(shap_dir,'average_event_predictions.pkl'))
+
+### V. Determine distribution of signficant transitions over time and entropy
+## Determine distribution of significant prognostic transitions over time
+# Load significant points of prognostic transition
+sig_transitions = pd.read_pickle(os.path.join(shap_dir,'significant_transition_points.pkl'))
+
+# Remove significant transitions from the pre-calibrated zone
+sig_transitions = sig_transitions[sig_transitions.WindowIdx > 4].reset_index(drop=True)
+
+# Calculate count of number of transitions above and below threshold per window index
+sig_transitions_over_time = sig_transitions.groupby(['WindowIdx','Above'],as_index=False).GUPI.count()
+
+# Save count of significant transitions over time
+sig_transitions_over_time.to_csv(os.path.join(shap_dir,'significant_transition_count_over_time.csv'),index=False)
+
+## Calculate Shannon's Entropy over time
+# Load compiled testing set predictions
+test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_test_predictions.csv'))
+
+# Filter testing set predictions to top-performing model
+test_predictions_df = test_predictions_df[test_predictions_df.TUNE_IDX==135].reset_index(drop=True)
+
+# Calculate Shannon's Entropy based on predicted GOSE probability
+prob_cols = [col for col in test_predictions_df if col.startswith('Pr(GOSE=')]
+test_predictions_df['Entropy'] = stats.entropy(test_predictions_df[prob_cols],axis=1,base=2)
+
+# Summarise entropy values by `WindowIdx`
+summarised_entropy = test_predictions_df.groupby('WindowIdx',as_index=False)['Entropy'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+
+# Save summarised entropy values
+summarised_entropy.to_csv(os.path.join(model_dir,'summarised_entropy_values.csv'),index=False)

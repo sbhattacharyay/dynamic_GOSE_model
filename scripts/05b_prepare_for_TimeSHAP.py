@@ -10,6 +10,7 @@
 # III. Partition significant transition points for parallel TimeSHAP calculation
 # IV. Calculate average training set predictions per tuning configuration
 # V. Determine distribution of signficant transitions over time and entropy
+# VI. Summarise average prediction at each threshold over time
 
 ### I. Initialisation
 # Fundamental libraries
@@ -221,6 +222,9 @@ else:
     # Read model checkpoint information dataframe
     ckpt_info = pd.read_pickle(os.path.join(shap_dir,'ckpt_info.pkl'))
 
+# Filter checkpoints of top-performing model
+ckpt_info = ckpt_info[ckpt_info.TUNE_IDX==135].reset_index(drop=True)
+
 ## Calculate and summarise training set predictions for each checkpoint
 # Define variable to store summarised training set predictions
 summ_train_preds = []
@@ -312,40 +316,53 @@ summ_train_preds.to_pickle(os.path.join(shap_dir,'summarised_training_set_predic
 # Define variable to store average-event predictions
 avg_event_preds = []
 
+# Extract unique partitions of cross-validation
+uniq_partitions = ckpt_info[['REPEAT','FOLD']].drop_duplicates(ignore_index=True)
+
 # Iterate through folds
-for curr_fold in tqdm(ckpt_info.FOLD.unique(),'Iterating through folds to calculate average event predictions'):
+for curr_cv_index in tqdm(range(uniq_partitions.shape[0]),'Iterating through unique cross validation partitions to calculate average event predictions'):
     
+    # Extract current repeat and fold from index
+    curr_repeat = uniq_partitions.REPEAT[curr_cv_index]
+    curr_fold = uniq_partitions.FOLD[curr_cv_index]
+
     # Define current fold token subdirectory
-    token_fold_dir = os.path.join(tokens_dir,'fold'+str(curr_fold))
+    token_fold_dir = os.path.join(tokens_dir,'repeat'+str(curr_repeat).zfill(2),'fold'+str(curr_fold))
     
     # Load current token-indexed testing set
-    testing_set = pd.read_pickle(os.path.join(token_fold_dir,'testing_indices.pkl'))
+    testing_set = pd.read_pickle(os.path.join(token_fold_dir,'from_adm_strategy_abs_testing_indices.pkl'))
     
     # Filter testing set predictions based on `WindowIdx`
     testing_set = testing_set[testing_set.WindowIdx <= 84].reset_index(drop=True)
     
     # Load current token-indexed training set
-    training_set = pd.read_pickle(os.path.join(token_fold_dir,'training_indices.pkl'))
+    training_set = pd.read_pickle(os.path.join(token_fold_dir,'from_adm_strategy_abs_training_indices.pkl'))
     
     # Filter training set predictions based on `WindowIdx`
     training_set = training_set[training_set.WindowIdx <= 84].reset_index(drop=True)
     
+    # Retrofit dataframes
+    training_set = training_set.rename(columns={'VocabTimeFromAdmIndex':'VocabDaysSinceAdmIndex'})        
+    testing_set = testing_set.rename(columns={'VocabTimeFromAdmIndex':'VocabDaysSinceAdmIndex'})
+
     # Load current token dictionary
-    curr_vocab = cp.load(open(os.path.join(token_fold_dir,'token_dictionary.pkl'),"rb"))
+    curr_vocab = cp.load(open(os.path.join(token_fold_dir,'from_adm_strategy_abs_token_dictionary.pkl'),"rb"))
     unknown_index = curr_vocab['<unk>']
     
     # Iterate through tuning indices
-    for curr_tune_idx in tqdm(ckpt_info[ckpt_info.FOLD==curr_fold].TUNE_IDX.unique(),'Iterating through tuning indices in fold '+str(curr_fold)+' to calculate average event predictions'):
+    for curr_tune_idx in tqdm(ckpt_info[(ckpt_info.REPEAT==curr_repeat)&(ckpt_info.FOLD==curr_fold)].TUNE_IDX.unique(),'Iterating through tuning indices in repeat '+str(curr_repeat)+', fold '+str(curr_fold)+' to calculate average event predictions'):
         
         # Extract current file and required hyperparameter information
-        curr_file = ckpt_info.file[(ckpt_info.FOLD==curr_fold)&(ckpt_info.TUNE_IDX==curr_tune_idx)].values[0]
-        curr_time_tokens = post_tuning_grid.TIME_TOKENS[(post_tuning_grid.TUNE_IDX==curr_tune_idx)&(post_tuning_grid.FOLD==curr_fold)].values[0]
-        
+        curr_file = ckpt_info.file[(ckpt_info.REPEAT==curr_repeat)&(ckpt_info.FOLD==curr_fold)&(ckpt_info.TUNE_IDX==curr_tune_idx)].values[0]
+        curr_time_tokens = post_tuning_grid.TIME_TOKENS[(post_tuning_grid.TUNE_IDX==curr_tune_idx)].values[0]
+        curr_rnn_type = post_tuning_grid.RNN_TYPE[(post_tuning_grid.TUNE_IDX==curr_tune_idx)].values[0]
+
         # Format time tokens of index sets based on current tuning configuration
         format_testing_set,time_tokens_mask = format_time_tokens(testing_set.copy(),curr_time_tokens,False)
         format_testing_set['SeqLength'] = format_testing_set.VocabIndex.apply(len)
         format_testing_set['Unknowns'] = format_testing_set.VocabIndex.apply(lambda x: x.count(unknown_index))        
-        
+        format_training_set,time_tokens_mask = format_time_tokens(training_set.copy(),curr_time_tokens,False)
+
         # Calculate number of columns to add
         cols_to_add = max(format_testing_set['Unknowns'].max(),1) - 1
         
@@ -353,28 +370,52 @@ for curr_fold in tqdm(ckpt_info.FOLD.unique(),'Iterating through folds to calcul
         token_labels = curr_vocab.get_itos() + [curr_vocab.get_itos()[unknown_index]+'_'+str(i+1).zfill(3) for i in range(cols_to_add)]
         token_labels[unknown_index] = token_labels[unknown_index]+'_000'
         
-        # Define zero-token dataframe for "average event"
-        average_event = pd.DataFrame(0, index=np.arange(1), columns=token_labels)
+        # Convert training set dataframe to multihot matrix
+        training_multihot = df_to_multihot_matrix(format_training_set, len(curr_vocab), unknown_index, cols_to_add)
         
+        # Define average-token dataframe from training set for "average event"
+        training_token_frequencies = training_multihot.sum(0)/training_multihot.shape[0]
+        average_event = pd.DataFrame(np.expand_dims((training_token_frequencies>0.5).astype(int),0), index=np.arange(1), columns=token_labels)
+
         # Load current pretrained model
         gose_model = GOSE_model.load_from_checkpoint(curr_file)
         gose_model.eval()
         
+        ## First, calculate average prediction of expected value effect calcualation
+        # Initialize custom TimeSHAP model for expected value effect calculation
+        ts_GOSE_model = timeshap_GOSE_model(gose_model,curr_rnn_type,-1,unknown_index,average_event.shape[1]-len(curr_vocab))
+        wrapped_gose_model = TorchModelWrapper(ts_GOSE_model)
+        f_hs = lambda x, y=None: wrapped_gose_model.predict_last_hs(x, y)
+
+        # Calculate average prediction on expected GOSE over time based on average event
+        avg_score_over_len = get_avg_score_with_avg_event(f_hs, average_event, top=84)
+        avg_score_over_len = pd.DataFrame(avg_score_over_len.items(),columns=['WindowIdx','Probability'])
+        
+        # Add metadata
+        avg_score_over_len['Threshold'] = 'ExpectedValue'
+        avg_score_over_len['REPEAT'] = curr_repeat
+        avg_score_over_len['FOLD'] = curr_fold
+        avg_score_over_len['TUNE_IDX'] = curr_tune_idx
+
+        # Append dataframe to running list
+        avg_event_preds.append(avg_score_over_len)
+
         # Calculate threshold-level probabilities of each prediction
         thresh_labels = ['GOSE>1','GOSE>3','GOSE>4','GOSE>5','GOSE>6','GOSE>7']
         for thresh in range(len(thresh_labels)):     
             
-            # Initialize custom TimeSHAP model
-            ts_GOSE_model = timeshap_GOSE_model(gose_model,thresh,unknown_index,cols_to_add)
+            # Initialize custom TimeSHAP model for threshold value effect calculation
+            ts_GOSE_model = timeshap_GOSE_model(gose_model,curr_rnn_type,thresh,unknown_index,average_event.shape[1]-len(curr_vocab))
             wrapped_gose_model = TorchModelWrapper(ts_GOSE_model)
             f_hs = lambda x, y=None: wrapped_gose_model.predict_last_hs(x, y)
-            
+
             # Calculate average prediction over time based on average event
             avg_score_over_len = get_avg_score_with_avg_event(f_hs, average_event, top=84)
             avg_score_over_len = pd.DataFrame(avg_score_over_len.items(),columns=['WindowIdx','Probability'])
             
             # Add metadata
             avg_score_over_len['Threshold'] = thresh_labels[thresh]
+            avg_score_over_len['REPEAT'] = curr_repeat
             avg_score_over_len['FOLD'] = curr_fold
             avg_score_over_len['TUNE_IDX'] = curr_tune_idx
             
@@ -385,11 +426,20 @@ for curr_fold in tqdm(ckpt_info.FOLD.unique(),'Iterating through folds to calcul
 avg_event_preds = pd.concat(avg_event_preds,ignore_index=True)
 
 # Sort average-event prediction dataframe and reorganize columns
-avg_event_preds = avg_event_preds.sort_values(by=['TUNE_IDX','FOLD','Threshold','WindowIdx']).reset_index(drop=True)
-avg_event_preds = avg_event_preds[['TUNE_IDX','FOLD','Threshold','WindowIdx','Probability']]
+avg_event_preds = avg_event_preds.sort_values(by=['TUNE_IDX','REPEAT','FOLD','Threshold','WindowIdx']).reset_index(drop=True)
+avg_event_preds = avg_event_preds[['TUNE_IDX','REPEAT','FOLD','Threshold','WindowIdx','Probability']]
 
 # Save average-event predictions into TimeSHAP directory
 avg_event_preds.to_pickle(os.path.join(shap_dir,'average_event_predictions.pkl'))
+
+# Load average-event predictions from TimeSHAP directory
+avg_event_preds = pd.read_pickle(os.path.join(shap_dir,'average_event_predictions.pkl'))
+
+# Summarise average-event predictions
+summ_avg_event_preds = avg_event_preds.groupby(['TUNE_IDX','Threshold','WindowIdx'],as_index=False)['Probability'].aggregate({'Q1':lambda x: np.quantile(x,.25),'median':np.median,'Q3':lambda x: np.quantile(x,.75),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+
+# Save summarised average-event predictors
+summ_avg_event_preds.to_csv(os.path.join(shap_dir,'summarised_average_event_predictions.csv'),index=False)
 
 ### V. Determine distribution of signficant transitions over time and entropy
 ## Determine distribution of significant prognostic transitions over time
@@ -421,3 +471,51 @@ summarised_entropy = test_predictions_df.groupby('WindowIdx',as_index=False)['En
 
 # Save summarised entropy values
 summarised_entropy.to_csv(os.path.join(model_dir,'summarised_entropy_values.csv'),index=False)
+
+### VI. Summarise average prediction at each threshold over time
+## Load and prepare compiled testing set predictions
+# Load compiled testing set predictions
+test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_test_predictions.csv'))
+
+# Filter testing set predictions to top-performing model
+test_predictions_df = test_predictions_df[test_predictions_df.TUNE_IDX==135].reset_index(drop=True)
+
+# Remove logit columns from dataframe
+logit_cols = [col for col in test_predictions_df if col.startswith('z_GOSE=')]
+test_predictions_df = test_predictions_df.drop(columns=logit_cols).reset_index(drop=True)
+
+# Calculate threshold-level probabilities
+prob_cols = [col for col in test_predictions_df if col.startswith('Pr(GOSE=')]
+thresh_labels = ['GOSE>1','GOSE>3','GOSE>4','GOSE>5','GOSE>6','GOSE>7']
+for thresh in range(1,len(prob_cols)):
+    cols_gt = prob_cols[thresh:]
+    prob_gt = test_predictions_df[cols_gt].sum(1).values
+    gt = (test_predictions_df['TrueLabel'] >= thresh).astype(int).values
+    test_predictions_df['Pr('+thresh_labels[thresh-1]+')'] = prob_gt
+    test_predictions_df[thresh_labels[thresh-1]] = gt
+
+# Calculate from-discharge window indices
+window_totals = test_predictions_df.groupby(['GUPI','TUNE_IDX','REPEAT','FOLD'],as_index=False).WindowIdx.aggregate({'WindowTotal':'max'})
+test_predictions_df = test_predictions_df.merge(window_totals,how='left')
+from_discharge_test_predictions_df = test_predictions_df.copy()
+from_discharge_test_predictions_df['WindowIdx'] = from_discharge_test_predictions_df['WindowIdx'] - from_discharge_test_predictions_df['WindowTotal'] - 1
+
+## Summarise probability values by window index and threshold
+# Define probability threshold columns
+prob_thresh_labels = ['Pr('+t+')' for t in thresh_labels]
+
+# Extract relevant columns
+test_predictions_df = test_predictions_df[['TUNE_IDX','REPEAT','FOLD','GUPI','WindowIdx']+prob_thresh_labels]
+from_discharge_test_predictions_df = from_discharge_test_predictions_df[['TUNE_IDX','REPEAT','FOLD','GUPI','WindowIdx']+prob_thresh_labels]
+
+# Melt dataframes to long form
+test_predictions_df = test_predictions_df.melt(id_vars=['TUNE_IDX','REPEAT','FOLD','GUPI','WindowIdx'],value_vars=prob_thresh_labels,var_name='THRESHOLD',value_name='PROBABILITY',ignore_index=True)
+from_discharge_test_predictions_df = from_discharge_test_predictions_df.melt(id_vars=['TUNE_IDX','REPEAT','FOLD','GUPI','WindowIdx'],value_vars=prob_thresh_labels,var_name='THRESHOLD',value_name='PROBABILITY',ignore_index=True)
+
+# Summarise probability values
+summ_test_preds_df = test_predictions_df.groupby(['TUNE_IDX','WindowIdx','THRESHOLD'],as_index=False).PROBABILITY.aggregate({'Q1':lambda x: np.quantile(x,.25),'median':np.median,'Q3':lambda x: np.quantile(x,.75),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+summ_from_discharge_test_preds_df = from_discharge_test_predictions_df.groupby(['TUNE_IDX','WindowIdx','THRESHOLD'],as_index=False).PROBABILITY.aggregate({'Q1':lambda x: np.quantile(x,.25),'median':np.median,'Q3':lambda x: np.quantile(x,.75),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+
+# Save summarised testing set prediction values
+summ_test_preds_df.to_csv(os.path.join(model_dir,'summarised_test_predictions.csv'),index=False)
+summ_from_discharge_test_preds_df.to_csv(os.path.join(model_dir,'summarised_from_discharge_test_predictions.csv'),index=False)

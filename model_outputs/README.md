@@ -1,1 +1,1 @@
-# dynamic_GOSE_model
+# Directory for storing trajectory-generating model outputs

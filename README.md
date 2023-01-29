@@ -1,5 +1,5 @@
 # Ordinal, full-context prognosis-based trajectories of traumatic brain injury patients in European ICUs
-Everything over time: a data-driven disease course of traumatic brain injury in European intensive care units
+Contribution of clinical trajectory to outcome after traumatic brain injury: data-driven disease course in European intensive care units
 
 ## Contents
 
@@ -11,7 +11,7 @@ Everything over time: a data-driven disease course of traumatic brain injury in 
 
 ## Overview
 
-This repository contains the code underlying the article entitled **Everything over time: a data-driven disease course of traumatic brain injury in European intensive care units** from the Collaborative European NeuroTrauma Effectiveness Research in TBI ([CENTER-TBI](https://www.center-tbi.eu/)) consortium. In this file, we present the abstract, to outline the motivation for the work and the findings, and then a brief description of the code with which we generate these finding and achieve this objective.\
+This repository contains the code underlying the article entitled **Contribution of clinical trajectory to outcome after traumatic brain injury: data-driven disease course in European intensive care units** from the Collaborative European NeuroTrauma Effectiveness Research in TBI ([CENTER-TBI](https://www.center-tbi.eu/)) consortium. In this file, we present the abstract, to outline the motivation for the work and the findings, and then a brief description of the code with which we generate these finding and achieve this objective.\
 \
 The code on this repository is commented throughout to provide a description of each step alongside the code which achieves it.
 

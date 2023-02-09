@@ -7,6 +7,7 @@
 ### Contents:
 # I. Initialisation
 # II. Construct a list of predictions to recalculate after removing dynamic variable tokens
+# III. Compile and clean static-only testing set predictions
 
 ### I. Initialisation
 # Fundamental libraries
@@ -110,22 +111,4 @@ token_info_df = token_info_df.merge(ckpt_info[['REPEAT','FOLD','TUNE_IDX','file'
 ## Save partition-token-checkpoint information file for sensitivity analysis
 token_info_df.to_pickle(os.path.join(model_dir,'sensitivity_analysis_prediction_grid.pkl'))
 
-# ## Partition list of all testing set tokens among available cores
-# # Identify number of token sets per core
-# s = [token_info_df.shape[0] // NUM_CORES for _ in range(NUM_CORES)]
-# s[:(token_info_df.shape[0] - sum(s))] = [over+1 for over in s[:(token_info_df.shape[0] - sum(s))]]
-
-# # Convert counts per core into indices of dataframe
-# end_idx = np.cumsum(s)
-# start_idx = np.insert(end_idx[:-1],0,0)
-
-# # Split dataframe into array components based on core partitions
-# token_files_per_core = [(token_info_df.iloc[start_idx[idx]:end_idx[idx],:].reset_index(drop=True),post_tuning_grid,study_GUPIs,True,'Calculating testing set predictions after removing all dynamic variable tokens for sensitivity analysis') for idx in range(len(start_idx))]
-
-# ## Calculate testing set predictions with dynamic tokens removed
-# # Calculate predictions in parallel
-# with multiprocessing.Pool(NUM_CORES) as pool:
-#     compiled_static_only_predictions = pd.concat(pool.starmap(static_only_predictions, token_files_per_core),ignore_index=True)
-
-# # Save compiled static-only predictions
-# compiled_static_only_predictions.to_csv(os.path.join(model_dir,'compiled_static_only_predictions.csv'),index=False)
+### III. Compile and clean static-only testing set predictions

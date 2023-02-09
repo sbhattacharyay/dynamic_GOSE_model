@@ -38,5 +38,5 @@ In this `.py` file, we create 100 partitions, stratified by 6-month GOSE, for re
   <li><h4><a href="05h_baseline_test_set_confidence_intervals.py">Compile testing set baseline prediction model performance metrics and calculate confidence intervals for comparison</a></h4> In this <code>.py</code> file, compile the baseline model performance metrics and summarise them across bootstrapping resamples to define the 95% confidence intervals for statistical inference. </li>
 </ol>
 
-### 6. [Visualise study results for manuscript](06_manuscript_visualisations.R)
+### 7. [Visualise study results for manuscript](06_manuscript_visualisations.R)
 In this `.R` file, we produce the figures for the manuscript and the supplementary figures. The large majority of the quantitative figures in the manuscript are produced using the `ggplot` package.

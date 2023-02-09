@@ -261,7 +261,11 @@ def count_token_incidences(index_df,curr_vocab,vocab_df,missing = True, progress
         compiled_token_incidences.append(token_freqs)
     
     return pd.concat(compiled_token_incidences,ignore_index=True)
-        
+
+# Function to remove all dynamic tokens for sensitivity analysis
+def remove_dynamic_tokens(token_df,progress_bar=True, progress_bar_desc=''):
+    pass
+
 def tokenize_categoricals(x):
     if (is_integer_dtype(x)) | (is_float_dtype(x)) | (x.name == 'GUPI'):
         return x

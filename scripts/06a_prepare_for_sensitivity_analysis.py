@@ -9,6 +9,7 @@
 # II. Construct a list of predictions to recalculate after removing dynamic variable tokens
 # III. Compile and clean static-only testing set predictions (run after running script 6b)
 # IV. Prepare bootstrapping resamples for sensitivity analysis
+# V. Characterise study population over time
 
 ### I. Initialisation
 # Fundamental libraries
@@ -229,3 +230,70 @@ cutoff_bs_resamples = pd.concat(cutoff_bs_resample_list,ignore_index=True)
 
 # Save bootstrapping resamples
 cutoff_bs_resamples.to_pickle(os.path.join(model_perf_dir,'cutoff_analysis_bs_resamples.pkl'))
+
+### V. Characterise study population over time
+## Identifty the number of windows per patient
+# Load compiled testing set predictions
+compiled_test_preds_df = pd.read_csv(os.path.join(model_dir,'compiled_test_predictions.csv'))
+
+# Create a dataframe of unique combinations of GUPIs and WindowIdx
+study_windows = compiled_test_preds_df[['GUPI','WindowIdx']].drop_duplicates(ignore_index=True)
+
+# Merge GOSE information onto dataframe
+study_windows = study_windows.merge(study_GUPIs,how='left')
+
+## Calculate count and proportion of GOSE per window index
+# Calculate patient count of each GOSE per study window
+GOSE_per_window = study_windows.groupby(['WindowIdx','GOSE'],as_index=False).GUPI.aggregate({'Count':'count'})
+
+# Add column representing the proportion of patients per GOSE per study window
+GOSE_per_window['Proportion'] = GOSE_per_window['Count'] / GOSE_per_window.groupby('WindowIdx')['Count'].transform('sum')
+
+## Calculate count and proportion of GCS per window index
+# Load baseline GCS values
+baseline_GCS = pd.read_csv('../CENTER-TBI/DemoInjHospMedHx/data.csv')[['GUPI','GCSScoreBaselineDerived']].dropna()
+
+# Categorise GCS score into severity
+baseline_GCS['Severity'] = pd.cut(baseline_GCS['GCSScoreBaselineDerived'],bins=[2,8,12,15],labels=['Severe','Moderate','Mild'],ordered=False).astype(str)
+
+# Merge GCS information onto dataframe
+GCS_study_windows = study_windows.merge(baseline_GCS,how='inner')
+
+# Calculate patient count of each Severity per study window
+Severity_per_window = GCS_study_windows.groupby(['WindowIdx','Severity'],as_index=False)['GUPI'].aggregate({'Count':'count'})
+
+# Add column representing the proportion of patients per Severity per study window
+Severity_per_window['Proportion'] = Severity_per_window['Count'] / Severity_per_window.groupby('WindowIdx')['Count'].transform('sum')
+
+## Calculate count and proportion of TIL per window index
+# Load and filter max TIL values
+max_TIL = pd.read_csv('../CENTER-TBI/DailyTIL/formatted_TIL_means_maxes.csv')
+max_TIL = max_TIL[(max_TIL.TILmetric=='TILmax')&(max_TIL.Group=='Total')].reset_index(drop=True)
+
+# Categorise max TIL score into intensity
+max_TIL['Intensity'] = pd.cut(max_TIL['value'],bins=[-1,0,2,11,18,38],labels=['None','Basic','Mild','Moderate','Extreme'],ordered=False).astype(str)
+
+# Merge TIL information onto dataframe
+TIL_study_windows = study_windows.merge(max_TIL,how='inner')
+
+# Calculate patient count of each Intensity per study window
+Intensity_per_window = TIL_study_windows.groupby(['WindowIdx','Intensity'],as_index=False)['GUPI'].aggregate({'Count':'count'})
+
+# Add column representing the proportion of patients per Intensity per study window
+Intensity_per_window['Proportion'] = Intensity_per_window['Count'] / Intensity_per_window.groupby('WindowIdx')['Count'].transform('sum')
+
+## Convert characteristic dataframes to long form and merge
+# GOSE
+GOSE_per_window = GOSE_per_window.melt(id_vars=['WindowIdx','Count','Proportion'],var_name='Characteristic',value_name='Value')
+
+# GCS
+Severity_per_window = Severity_per_window.melt(id_vars=['WindowIdx','Count','Proportion'],var_name='Characteristic',value_name='Value')
+
+# TIL
+Intensity_per_window = Intensity_per_window.melt(id_vars=['WindowIdx','Count','Proportion'],var_name='Characteristic',value_name='Value')
+
+# Concatenated characteristics
+characteristics_per_window = pd.concat([GOSE_per_window,Severity_per_window,Intensity_per_window],ignore_index=True)
+
+## Save characteristics dataframe
+characteristics_per_window.to_csv('../CENTER-TBI/characteristics_over_time.csv',index=False)

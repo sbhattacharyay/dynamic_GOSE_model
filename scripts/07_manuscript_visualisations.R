@@ -20,6 +20,7 @@
 # XIII. Supplementary Figure 4
 # XIV. Appendix variable lists
 # XV. Create table of cutoffs defining significant transitions
+# XVI. Stacked proportion barplots of characteristics over time
 
 ### I. Initialisation
 # Import necessary libraries
@@ -1912,3 +1913,83 @@ sig.transitions.df <- read.csv('../model_interpretations/v6-0/timeSHAP/significa
 cutoff.table <- sig.transitions.df %>%
   select(Threshold,Cutoff) %>%
   unique()
+
+### XVI. Stacked proportion barplots of characteristics over time
+## Prepare dataframe
+# Load dataframe of characteristics over time
+char.over.time <- read.csv('../CENTER-TBI/characteristics_over_time.csv',
+                           na.strings = c("NA","NaN","", " "))
+
+# Focus on first 7 days
+char.over.time <- char.over.time %>%
+  mutate(DaysAfterICUAdmission = WindowIdx/12)
+
+
+char.over.time %>%
+  filter(DaysAfterICUAdmission<=7,
+         Characteristic=='GOSE')%>%
+  ggplot(aes(x=DaysAfterICUAdmission,y=Count,fill=forcats::fct_rev(as.factor(Value)))) +
+  geom_bar(stat = "identity",
+           position = "fill")
+
+
+char.over.time %>%
+  filter(DaysAfterICUAdmission<=7,
+         Characteristic=='Severity')%>%
+  ggplot(aes(x=DaysAfterICUAdmission,y=Count,fill=factor(Value))) +
+  geom_bar(stat = "identity",
+           position = "fill")
+
+char.over.time %>%
+  filter(DaysAfterICUAdmission<=7,
+         Characteristic=='Intensity')%>%
+  ggplot(aes(x=DaysAfterICUAdmission,y=Count,fill=factor(Value))) +
+  geom_bar(stat = "identity",
+           position = "fill")
+
+geom_ribbon(aes(ymin=0,ymax=PropRemaining,fill='All patients'),alpha=.2) +
+  geom_line(aes(y=PropRemaining),alpha = 1, size=1.3/.pt,color='#ffa600')+
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.00, .01)))+
+  scale_y_continuous(expand = expansion(mult = c(.00, .00)))+
+  coord_cartesian(xlim=c(0,7),ylim = c(0,100)) +
+  ylab('Proportion remaining (%)')+
+  xlab('Days since ICU admission')+
+  scale_fill_manual(name = 'Variable type',values=c("All patients" = "#ffa600"))+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    strip.text = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'bottom',
+    legend.title = element_text(size = 7, color = "black", face = 'bold'),
+    legend.text=element_text(size=6),
+    legend.key.size = unit(1.3/.pt,"line")
+  )
+
+
+
+barPlots <- ggplot(impact.dataframe.long.cat, aes(x = GOSE, y = count, fill = forcats::fct_rev(as.factor(value)))) +
+  geom_bar(stat = "identity",
+           position = "fill") +
+  scale_fill_brewer(palette = "Set2") + 
+  facet_wrap(~name, 
+             scales = "free_y",
+             strip.position = "left",
+             labeller = as_labeller(c(GCSm = "Pr(GCSm)",marshall = "Pr(Marshall CT)", unreactive_pupils = "Pr(Unreactive Pupils)") )) +
+  ylab('Proportion') +
+  xlab('GOSE at 6 months post-injury') +
+  theme_classic() +
+  theme(strip.text = element_text(size=20), 
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 16, color = "black"),
+        axis.text.y = element_text(size = 16, color = "black"),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        strip.placement = "outside",
+        legend.position = "none",
+        aspect.ratio = 1)

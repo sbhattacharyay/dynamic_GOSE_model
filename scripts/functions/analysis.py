@@ -147,9 +147,13 @@ def calc_test_thresh_calibration(pred_df,window_indices,progress_bar = True,prog
             filt_is_preds = pred_df[(pred_df.WindowIdx == curr_wi)&(pred_df.TUNE_IDX == curr_tune_idx)].reset_index(drop=True)
             for thresh in thresh_labels:
                 thresh_prob_name = 'Pr('+thresh+')'
-                logit_gt = np.nan_to_num(logit(filt_is_preds[thresh_prob_name]),neginf=-100,posinf=100)
-                calib_glm = Logit(filt_is_preds[thresh], add_constant(logit_gt))
-                calib_glm_res = calib_glm.fit(disp=False)
+                try:
+                    logit_gt = np.nan_to_num(logit(filt_is_preds[thresh_prob_name]),neginf=-100,posinf=100)
+                    calib_glm = Logit(filt_is_preds[thresh], add_constant(logit_gt))
+                    calib_glm_res = calib_glm.fit(disp=False)
+                    curr_calib_slope = calib_glm_res.params[1]
+                except:
+                    curr_calib_slope = np.nan
                 thresh_calib_linspace = np.linspace(filt_is_preds[thresh_prob_name].min(),filt_is_preds[thresh_prob_name].max(),200)
                 TrueProb = lowess(endog = filt_is_preds[thresh], exog = filt_is_preds[thresh_prob_name], it = 0, xvals = thresh_calib_linspace)
                 filt_is_preds['TruePr('+thresh+')'] = filt_is_preds[thresh_prob_name].apply(lambda x: TrueProb[(np.abs(x - thresh_calib_linspace)).argmin()])
@@ -159,7 +163,7 @@ def calc_test_thresh_calibration(pred_df,window_indices,progress_bar = True,prog
                                                    'WINDOW_IDX':curr_wi,
                                                    'THRESHOLD':thresh,
                                                    'METRIC':['CALIB_SLOPE','ICI','Emax'],
-                                                   'VALUE':[calib_glm_res.params[1],ICI,Emax]}))
+                                                   'VALUE':[curr_calib_slope,ICI,Emax]}))
     calib_metrics = pd.concat(calib_metrics,ignore_index = True).reset_index(drop=True)
     return calib_metrics
 

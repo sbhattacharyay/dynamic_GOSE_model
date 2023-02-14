@@ -213,6 +213,25 @@ def load_robustness_checks(info_df, progress_bar=True, progress_bar_desc=''):
         compiled_robustness.append(pd.read_pickle(info_df.FILE[curr_row]))      
     return pd.concat(compiled_robustness,ignore_index=True)
 
+# Define function to load static-only predictions
+def load_static_only_predictions(info_df, progress_bar=True, progress_bar_desc=''):
+    
+    compiled_predictions = []
+        
+    if progress_bar:
+        iterator = tqdm(range(info_df.shape[0]),desc=progress_bar_desc)
+    else:
+        iterator = range(info_df.shape[0])
+    
+    # Load each prediction file, add 'WindowIdx' and repeat/fold information
+    for curr_row in iterator:
+        try:
+            curr_preds = pd.read_pickle(info_df.FILE[curr_row])
+            compiled_predictions.append(curr_preds)
+        except:
+            print("An exception occurred for file: "+info_df.FILE[curr_row])         
+    return pd.concat(compiled_predictions,ignore_index=True)
+
 def load_predictions(info_df, progress_bar=True, progress_bar_desc=''):
     
     compiled_predictions = []

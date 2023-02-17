@@ -171,3 +171,12 @@ cutoff_CI_discrimination = compiled_cutoff_discrimination.groupby(['TUNE_IDX','M
 
 # Save confidence intervals
 cutoff_CI_discrimination.to_csv(os.path.join(model_perf_dir,'sensitivity_cutoff_discrimination_CI.csv'),index=False)
+
+# Calculate mean cutoff difference among first 11 windows
+baseline_mean_cutoff_difference = compiled_cutoff_discrimination[(compiled_cutoff_discrimination.variable == 'CUTOFF_DIFFERENCE')&(compiled_cutoff_discrimination.WINDOW_IDX!=compiled_cutoff_discrimination.CUTOFF_IDX)].groupby(['TUNE_IDX','METRIC','CUTOFF_IDX','RESAMPLE_IDX'],as_index=False)['value'].mean()
+
+# Calculate confidence intervals
+baseline_CI_mean_cutoff_difference = baseline_mean_cutoff_difference.groupby(['TUNE_IDX','METRIC','CUTOFF_IDX'],as_index=False)['value'].aggregate({'lo':lambda x: np.nanquantile(x,.025),'median':np.nanmedian,'hi':lambda x: np.nanquantile(x,.975),'mean':np.nanmean,'std':np.nanstd,'resamples':lambda x: x.count()}).reset_index(drop=True)
+
+# Save confidence intervals
+baseline_CI_mean_cutoff_difference.to_csv(os.path.join(model_perf_dir,'sensitivity_cutoff_mean_difference_CI.csv'),index=False)

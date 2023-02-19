@@ -114,7 +114,9 @@ with multiprocessing.Pool(NUM_CORES) as pool:
 ## Discrimination metrics
 compiled_sens_discrimination['STATIC_DIFFERENCE'] = compiled_sens_discrimination['VALUE'] - compiled_sens_discrimination['STATIC_VALUE']
 compiled_sens_discrimination['FIRST_WINDOW_DIFFERENCE'] = compiled_sens_discrimination['VALUE'] - compiled_sens_discrimination['FIRST_WINDOW_VALUE']
-sens_CI_static_discrimination = compiled_sens_discrimination.groupby(['TUNE_IDX','METRIC','WINDOW_IDX'],as_index=False)['STATIC_DIFFERENCE'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+compiled_sens_discrimination = compiled_sens_discrimination.melt(id_vars=['TUNE_IDX','WINDOW_IDX','METRIC','RESAMPLE_IDX'])
+sens_CI_static_discrimination = compiled_sens_discrimination.groupby(['TUNE_IDX','METRIC','WINDOW_IDX','variable'],as_index=False)['STATIC_DIFFERENCE'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
+
 sens_CI_static_discrimination.insert(3,'BASELINE_TYPE',['Static' for idx in range(sens_CI_static_discrimination.shape[0])])
 sens_CI_first_window_discrimination = compiled_sens_discrimination.groupby(['TUNE_IDX','METRIC','WINDOW_IDX'],as_index=False)['FIRST_WINDOW_DIFFERENCE'].aggregate({'lo':lambda x: np.quantile(x,.025),'median':np.median,'hi':lambda x: np.quantile(x,.975),'mean':np.mean,'std':np.std,'resamples':'count'}).reset_index(drop=True)
 sens_CI_first_window_discrimination.insert(3,'BASELINE_TYPE',['FirstWindow' for idx in range(sens_CI_first_window_discrimination.shape[0])])

@@ -51,19 +51,23 @@ from functions.analysis import calc_test_ORC, calc_test_thresh_calibration, calc
 
 # Set version code
 VERSION = 'LOGREG_v1-0'
+STATIC_VERSION = 'v6-0'
 
 # Set number of cores for all parallel processing
 NUM_CORES = multiprocessing.cpu_count()
 
 # Define model output directory based on version code
 model_dir = '/home/sb2406/rds/hpc-work/CPM_outputs/'+VERSION
+static_model_dir = '/home/sb2406/rds/hpc-work/model_outputs/'+STATIC_VERSION
 
 # Define and initialise baseline model performance directory based on version code
 model_perf_dir = '/home/sb2406/rds/hpc-work/model_performance/BaselineComparison'
+static_model_perf_dir = '/home/sb2406/rds/hpc-work/model_performance/'+STATIC_VERSION
 os.makedirs(model_perf_dir,exist_ok=True)
 
 # Define and create subdirectory to store testing set bootstrapping results
 test_bs_dir = os.path.join(model_perf_dir,'testing_set_bootstrapping')
+sens_bs_dir = os.path.join(static_model_perf_dir,'sensitivity_bootstrapping')
 os.makedirs(test_bs_dir,exist_ok=True)
 
 # Load cross-validation information to get GUPI and outcomes
@@ -91,63 +95,75 @@ def main(array_task_id):
     
     # Load and filter compiled testing set
 #     test_predictions_df = pd.read_pickle(os.path.join(model_dir,'compiled_test_predictions.pkl'))
-    test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_mnlr_test_predictions.csv'))
-    test_predictions_df = test_predictions_df[test_predictions_df.GUPI.isin(curr_GUPIs)].reset_index(drop=True)
+    # test_predictions_df = pd.read_csv(os.path.join(model_dir,'compiled_mnlr_test_predictions.csv'))
+    # test_predictions_df = test_predictions_df[test_predictions_df.GUPI.isin(curr_GUPIs)].reset_index(drop=True)
 
-    # Fix labelling of `TrueLabel`
-    old_labels = np.sort(test_predictions_df.TrueLabel.unique())
-    test_predictions_df['TrueLabel'] = test_predictions_df.TrueLabel.apply(lambda x: np.where(old_labels == x)[0][0])
+    # Load and filter compiled static testing set
+    static_predictions_df = pd.read_pickle(os.path.join(static_model_dir,'compiled_static_only_test_predictions.pkl'))
+    static_predictions_df = static_predictions_df[static_predictions_df.GUPI.isin(curr_GUPIs)].reset_index(drop=True)
+
+    # # Fix labelling of `TrueLabel`
+    # old_labels = np.sort(test_predictions_df.TrueLabel.unique())
+    # test_predictions_df['TrueLabel'] = test_predictions_df.TrueLabel.apply(lambda x: np.where(old_labels == x)[0][0])
 
     # # Remove logit columns from dataframe
     # logit_cols = [col for col in test_predictions_df if col.startswith('z_GOSE=')]
     # test_predictions_df = test_predictions_df.drop(columns=logit_cols).reset_index(drop=True)
     
     # Calculate intermediate values for metric calculation
-    prob_cols = [col for col in test_predictions_df if col.startswith('Pr(GOSE=')]
-    prob_matrix = test_predictions_df[prob_cols]
+    prob_cols = [col for col in static_predictions_df if col.startswith('Pr(GOSE=')]
+    prob_matrix = static_predictions_df[prob_cols]
     prob_matrix.columns = list(range(prob_matrix.shape[1]))
     index_vector = np.array(list(range(7)), ndmin=2).T
-    test_predictions_df['ExpectedValue'] = np.matmul(prob_matrix.values,index_vector)
+    static_predictions_df['ExpectedValue'] = np.matmul(prob_matrix.values,index_vector)
     
-    ## Repeat predictions by number of window indices
-    # Load study windows and filter to in-resample GUPIs
-    study_windows = pd.read_csv('/home/sb2406/rds/hpc-work/timestamps/window_timestamps.csv')
-    study_windows = study_windows[study_windows.GUPI.isin(curr_GUPIs)].drop(columns=['TimeStampStart','TimeStampEnd']).reset_index(drop=True)
+    # Remove logit columns from dataframes
+    logit_cols = [col for col in static_predictions_df if col.startswith('z_GOSE=')]
+    static_predictions_df = static_predictions_df.drop(columns=logit_cols).reset_index(drop=True)
+
+    # Calculate study window totals to add 'WindowTotal' column
+    study_window_totals = static_predictions_df.groupby(['GUPI','TrueLabel'],as_index=False)['WindowIdx'].max().rename(columns={'WindowIdx':'WindowTotal'})
+    static_predictions_df = static_predictions_df.merge(study_window_totals[['GUPI','WindowTotal']],how='left')
+
+    # ## Repeat predictions by number of window indices
+    # # Load study windows and filter to in-resample GUPIs
+    # study_windows = pd.read_csv('/home/sb2406/rds/hpc-work/timestamps/window_timestamps.csv')
+    # study_windows = study_windows[study_windows.GUPI.isin(curr_GUPIs)].drop(columns=['TimeStampStart','TimeStampEnd']).reset_index(drop=True)
     
-    # Add window indices and totals to static prediction values
-    test_predictions_df = test_predictions_df.merge(study_windows).reset_index(drop=True)
-    test_predictions_df = test_predictions_df[test_predictions_df.WindowIdx>=12].reset_index(drop=True)
-    test_predictions_df['TUNE_IDX'] = 1
+    # # Add window indices and totals to static prediction values
+    # test_predictions_df = test_predictions_df.merge(study_windows).reset_index(drop=True)
+    # test_predictions_df = test_predictions_df[test_predictions_df.WindowIdx>=12].reset_index(drop=True)
+    # test_predictions_df['TUNE_IDX'] = 1
 
     # Calculate from-discharge window indices
-    from_discharge_test_predictions_df = test_predictions_df.copy()
-    from_discharge_test_predictions_df['WindowIdx'] = from_discharge_test_predictions_df['WindowIdx'] - from_discharge_test_predictions_df['WindowTotal'] - 1
-    
+    from_discharge_static_predictions_df = static_predictions_df.copy()
+    from_discharge_static_predictions_df['WindowIdx'] = from_discharge_static_predictions_df['WindowIdx'] - from_discharge_static_predictions_df['WindowTotal'] - 1
+
     # Create array of unique tuning indices
-    uniq_tuning_indices = test_predictions_df.TUNE_IDX.unique()
+    uniq_tuning_indices = static_predictions_df.TUNE_IDX.unique()
     
     # Calculate testing set ORC for every Tuning Index, Window Index combination
-    testing_set_ORCs = calc_test_ORC(test_predictions_df,list(range(12,85)),True,'Calculating testing set ORC')
+    testing_set_ORCs = calc_test_ORC(static_predictions_df,list(range(1,85)),True,'Calculating testing set ORC')
     
     # Calculate from-discharge testing set ORC for every Tuning Index, Window Index combination
-    from_discharge_testing_set_ORCs = calc_test_ORC(from_discharge_test_predictions_df,list(range(-84,0)),True,'Calculating testing set ORC from discharge')
+    from_discharge_testing_set_ORCs = calc_test_ORC(from_discharge_static_predictions_df,list(range(-85,0)),True,'Calculating testing set ORC from discharge')
     
     # Calculate testing set Somers' D for every Tuning Index, Window Index combination
-    testing_set_Somers_D = calc_test_Somers_D(test_predictions_df,list(range(12,85)),True,'Calculating testing set Somers D')
+    testing_set_Somers_D = calc_test_Somers_D(static_predictions_df,list(range(1,85)),True,'Calculating testing set Somers D')
     
     # Calculate from-discharge testing set Somers' D for every Tuning Index, Window Index combination
-    from_discharge_testing_set_Somers_D = calc_test_Somers_D(from_discharge_test_predictions_df,list(range(-84,0)),True,'Calculating testing set Somers D from discharge')
+    from_discharge_testing_set_Somers_D = calc_test_Somers_D(from_discharge_static_predictions_df,list(range(-84,0)),True,'Calculating testing set Somers D from discharge')
     
     # Concatenate testing discrimination metrics, add resampling index and save
     testing_set_discrimination = pd.concat([testing_set_ORCs,from_discharge_testing_set_ORCs,testing_set_Somers_D,from_discharge_testing_set_Somers_D],ignore_index=True)
     testing_set_discrimination['RESAMPLE_IDX'] = curr_rs_idx
-    testing_set_discrimination.to_pickle(os.path.join(test_bs_dir,'test_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
-    
+    testing_set_discrimination.to_pickle(os.path.join(sens_bs_dir,'second_diff_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+
     # Calculate testing set threshold-level calibration metrics for every Tuning Index, Window Index combination
-    testing_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df,list(range(12,85)),True,'Calculating testing set threshold calibration metrics')
+    testing_set_thresh_calibration = calc_test_thresh_calibration(static_predictions_df,list(range(1,85)),True,'Calculating testing set threshold calibration metrics')
     
     # Calculate testing set from-discharge threshold-level calibration metrics for every Tuning Index, Window Index combination
-    from_discharge_testing_set_thresh_calibration = calc_test_thresh_calibration(from_discharge_test_predictions_df,list(range(-84,0)),True,'Calculating testing set threshold calibration metrics from discharge')    
+    from_discharge_testing_set_thresh_calibration = calc_test_thresh_calibration(from_discharge_static_predictions_df,list(range(-85,0)),True,'Calculating testing set threshold calibration metrics from discharge')    
     
     # Compile testing calibration from-admission and from-discharge metrics
     testing_set_thresh_calibration = pd.concat([testing_set_thresh_calibration,from_discharge_testing_set_thresh_calibration],ignore_index=True)
@@ -161,7 +177,7 @@ def main(array_task_id):
     
     # Add resampling index and save
     testing_set_thresh_calibration['RESAMPLE_IDX'] = curr_rs_idx
-    testing_set_thresh_calibration.to_pickle(os.path.join(test_bs_dir,'test_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+    testing_set_thresh_calibration.to_pickle(os.path.join(sens_bs_dir,'second_diff_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
     
     # # Calculate calbration curves from admission
     # testing_set_thresh_calib_curves = calc_test_thresh_calib_curves(test_predictions_df,[12,24,36,48,60,72,84],True,'Calculating testing set threshold calibration curves')

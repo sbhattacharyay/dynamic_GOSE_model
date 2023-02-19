@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J baseline_test_set_bootstrapping
+#SBATCH -J static_test_set_bootstrapping
 #SBATCH -A MENON-SL2-CPU
 #SBATCH -p icelake
 #SBATCH --nodes=1
@@ -9,7 +9,7 @@
 #SBATCH --array=0-999
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=sb2406@cam.ac.uk
-#SBATCH --output=/home/sb2406/rds/hpc-work/model_performance/BaselineComparison/hpc_logs/test_bootstrapping/baseline_test_bootstrapping_trial_%a.out
+#SBATCH --output=/home/sb2406/rds/hpc-work/model_performance/BaselineComparison/hpc_logs/test_bootstrapping/static_test_bootstrapping_trial_%a.out
 
 . /etc/profile.d/modules.sh                # Leave this line (enables the module command)
 module purge

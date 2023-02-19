@@ -21,6 +21,7 @@
 # XIV. Appendix variable lists
 # XV. Create table of cutoffs defining significant transitions
 # XVI. Stacked proportion barplots of characteristics over time
+# XVII. Sensitivity analysis difference plots
 
 ### I. Initialisation
 # Import necessary libraries
@@ -39,105 +40,7 @@ library(extrafont)
 source('functions/plotting.R')
 
 ### II. Figure 1
-## Load token characteristics
-# Token characteristics
-token.type.counts <- read.csv('../tokens/fold1/token_type_counts.csv',
-                              na.strings = c("NA","NaN","", " ")) %>%
-  mutate(DynamicTokens = TotalTokens - Baseline) %>%
-  group_by(WindowIdx) %>%
-  summarise(q1DynamicTokens = quantile(DynamicTokens,.25,na.rm=T),
-            medianDynamicTokens = median(DynamicTokens,na.rm=T),
-            q3DynamicTokens = quantile(DynamicTokens,.75,na.rm=T),
-            q1BaselineTokens = quantile(Baseline,.25,na.rm=T),
-            medianBaselineTokens = median(Baseline,na.rm=T),
-            q3BaselineTokens = quantile(Baseline,.75,na.rm=T),
-            countPatients = n()) %>%
-  mutate(DaysAfterICUAdmission = WindowIdx/12,
-         PropRemaining = 100*countPatients/1552,
-         SumTotalTokens = medianBaselineTokens+medianDynamicTokens)
-
-# Create ggplot of median token count over the first week
-median.tokens.per.pt <- token.type.counts %>%
-  filter(DaysAfterICUAdmission<=7)%>%
-  ggplot(aes(x=DaysAfterICUAdmission)) +
-  geom_ribbon(aes(ymin=0,ymax=medianBaselineTokens,fill='Static'),alpha=.2) +
-  geom_ribbon(aes(ymin=medianBaselineTokens,ymax=SumTotalTokens,fill='Dynamic'),alpha=.2) +
-  geom_line(aes(y=medianBaselineTokens),alpha = 1, size=1.3/.pt,color='#003f5c')+
-  geom_line(aes(y=SumTotalTokens),alpha = 1, size=1.3/.pt,color='#bc5090')+
-  scale_x_continuous(breaks=seq(0,30,by=1),expand = expansion(mult = c(.00, .01)))+
-  scale_y_continuous(expand = expansion(mult = c(.00, .00)))+
-  scale_fill_manual(name = 'Variable type',values=c("Static" = "#003f5c", "Dynamic" = "#bc5090"))+
-  coord_cartesian(xlim=c(0,30)) +
-  ylab('Token count (median/patient)')+
-  xlab('Days since ICU admission')+
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    strip.text = element_blank(),
-    panel.grid.minor.x = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
-    legend.position = 'bottom',
-    legend.title = element_text(size = 7, color = "black", face = 'bold'),
-    legend.text=element_text(size=6),
-    legend.key.size = unit(1.3/.pt,"line")
-  )
-
-# Create directory for current date and save token characteristic plot
-dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'token_characteristics.svg'),median.tokens.per.pt,device= svglite,units='in',dpi=600,width=3.7,height = 1.75)
-
-# Create ggplot of proportion of remaining population over the first week
-prop.remaining <- token.type.counts %>%
-  filter(DaysAfterICUAdmission<=7)%>%
-  ggplot(aes(x=DaysAfterICUAdmission)) +
-  geom_ribbon(aes(ymin=0,ymax=PropRemaining,fill='All patients'),alpha=.2) +
-  geom_line(aes(y=PropRemaining),alpha = 1, size=1.3/.pt,color='#ffa600')+
-  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.00, .01)))+
-  scale_y_continuous(expand = expansion(mult = c(.00, .00)))+
-  coord_cartesian(xlim=c(0,7),ylim = c(0,100)) +
-  ylab('Proportion remaining (%)')+
-  xlab('Days since ICU admission')+
-  scale_fill_manual(name = 'Variable type',values=c("All patients" = "#ffa600"))+
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    strip.text = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
-    legend.position = 'bottom',
-    legend.title = element_text(size = 7, color = "black", face = 'bold'),
-    legend.text=element_text(size=6),
-    legend.key.size = unit(1.3/.pt,"line")
-  )
-
-# Create directory for current date and save remaining proportion plot
-dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'prop_remaining.svg'),prop.remaining,device= svglite,units='in',dpi=600,width=3.7,height = 1.75)
-
-### III. Figure 2
-## Prepare overall performance dataframes
-# Discrimination results
-discrimination.CIs <- read.csv('../model_performance/v6-0/test_set_discrimination_CI.csv',
-                               na.strings = c("NA","NaN","", " ")) %>%
-  mutate(VERSION = 6,
-         SinceAdmission = WINDOW_IDX > 0)
-discrimination.CIs$WINDOW_IDX[!discrimination.CIs$SinceAdmission] <- discrimination.CIs$WINDOW_IDX[!discrimination.CIs$SinceAdmission] + 1
-discrimination.CIs <- discrimination.CIs %>%
-  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
-
-# Baseline discrimination results
-baseline.discrimination.CIs <- read.csv('../model_performance/BaselineComparison/test_set_discrimination_CI.csv',
-                                        na.strings = c("NA","NaN","", " ")) %>%
-  mutate(VERSION = 'Baseline',
-         SinceAdmission = WINDOW_IDX > 0)
-baseline.discrimination.CIs$WINDOW_IDX[!baseline.discrimination.CIs$SinceAdmission] <- baseline.discrimination.CIs$WINDOW_IDX[!baseline.discrimination.CIs$SinceAdmission] + 1
-baseline.discrimination.CIs <- baseline.discrimination.CIs %>%
-  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
-
+## Prepare overall calibration dataframes
 # Calibration curve results
 calib.curves.CIs <- read.csv('../model_performance/v6-0/test_set_calib_curves_CI.csv',
                              na.strings = c("NA","NaN","", " ")) %>%
@@ -162,6 +65,15 @@ calibration.CIs$WINDOW_IDX[!calibration.CIs$SinceAdmission] <- calibration.CIs$W
 calibration.CIs <- calibration.CIs %>%
   mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
 
+# Static calibration metric results
+static.calibration.CIs <- read.csv('../model_performance/v6-0/static_set_calibration_CI.csv',
+                                   na.strings = c("NA","NaN","", " ")) %>%
+  mutate(VERSION = 'Static',
+         SinceAdmission = WINDOW_IDX > 0)
+static.calibration.CIs$WINDOW_IDX[!static.calibration.CIs$SinceAdmission] <- static.calibration.CIs$WINDOW_IDX[!static.calibration.CIs$SinceAdmission] + 1
+static.calibration.CIs <- static.calibration.CIs %>%
+  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
+
 # Baseline calibration metric results
 baseline.calibration.CIs <- read.csv('../model_performance/BaselineComparison/test_set_calibration_CI.csv',
                                      na.strings = c("NA","NaN","", " ")) %>%
@@ -171,135 +83,64 @@ baseline.calibration.CIs$WINDOW_IDX[!baseline.calibration.CIs$SinceAdmission] <-
 baseline.calibration.CIs <- baseline.calibration.CIs %>%
   mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
 
-## Create overall discrimination performance plots
-# Since admission Somers' D plot
-new.discrimination.CIs  <- discrimination.CIs %>%
-  filter(SinceAdmission,
-         METRIC == 'Somers D')
-old.discrimination.CIs  <- baseline.discrimination.CIs %>%
-  filter(SinceAdmission,
-         METRIC == 'Somers D')
-since.adm.somers <- ggplot() +
-  coord_cartesian(xlim=c(0,7), ylim = c(27.5,55)) +
-  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
-  geom_line(data=old.discrimination.CIs,aes(x=DaysAfterICUAdmission,y=100*median),alpha = 1, size=1.3/.pt,color='dark gray')+
-  geom_line(data=old.discrimination.CIs,aes(x=DaysAfterICUAdmission,y=100*lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=old.discrimination.CIs,aes(x=DaysAfterICUAdmission,y=100*hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=new.discrimination.CIs,aes(x=DaysAfterICUAdmission,y=100*median),alpha = 1, size=1.3/.pt,color='#003f5c')+
-  geom_ribbon(data=new.discrimination.CIs,aes(x=DaysAfterICUAdmission,ymin=lo*100,ymax=hi*100),alpha=.2,fill='#003f5c') +
-  ylab('Explanation of ordinal GOSE (%)')+
-  xlab('Days since ICU admission')+
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    panel.grid.minor.x = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
-  )
-
-# Before discharge Somers' D plot
-new.discrimination.CIs  <- discrimination.CIs %>%
-  filter(!SinceAdmission,
-         METRIC == 'Somers D') %>%
-  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission)) 
-old.discrimination.CIs  <- baseline.discrimination.CIs %>%
-  filter(!SinceAdmission,
-         METRIC == 'Somers D') %>%
-  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission))
-before.disch.somers <- ggplot() +
-  scale_x_reverse(expand = expansion(mult = c(.0, .0)),breaks=seq(0,7,by=1))+
-  coord_cartesian(xlim=c(7,0), ylim = c(27.5,55)) +
-  geom_line(data=old.discrimination.CIs,aes(x=DaysBeforeICUDischarge,y=100*median),alpha = 1, size=1.3/.pt,color='dark gray')+
-  geom_line(data=old.discrimination.CIs,aes(x=DaysBeforeICUDischarge,y=100*lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=old.discrimination.CIs,aes(x=DaysBeforeICUDischarge,y=100*hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=new.discrimination.CIs,aes(x=DaysBeforeICUDischarge,y=100*median),alpha = 1, size=1.3/.pt,color='#003f5c')+
-  geom_ribbon(data=new.discrimination.CIs,aes(x=DaysBeforeICUDischarge,ymin=lo*100,ymax=hi*100),alpha=.2,fill='#003f5c') +
-  ylab('Explanation of ordinal GOSE (%)')+
-  xlab('Days before ICU discharge')+
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    panel.grid.minor.x = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
-  )
-
-# Create directory for current date and save post-admission and pre-discharge Somers' D plots
-dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'since_adm_somers.svg'),since.adm.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
-ggsave(file.path('../plots',Sys.Date(),'before_disch_somers.svg'),before.disch.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
-
-# Check the difference between old and new Somers D over time
-combined.discrimination.CIs <- rbind(discrimination.CIs,baseline.discrimination.CIs) %>%
-  filter(METRIC == 'Somers D') %>%
-  select(DaysAfterICUAdmission,median,VERSION) %>%
-  pivot_wider(names_from = VERSION,values_from = median) %>%
-  mutate(Difference=`6` - Baseline)
-difference.plot <- ggplot(combined.discrimination.CIs,aes(DaysAfterICUAdmission,Difference)) +
-  geom_line()
-
 ## Create threshold-level calibration slope plot
 # Since admission calibration slope plot
-new.calibration.CIs  <- calibration.CIs %>%
+since.adm.calib.slope <- rbind(calibration.CIs,baseline.calibration.CIs) %>%
   filter(SinceAdmission,
-         METRIC=='CALIB_SLOPE',
-         THRESHOLD=='Average')
-old.calibration.CIs  <- baseline.calibration.CIs %>%
-  filter(SinceAdmission,
-         METRIC=='CALIB_SLOPE',
-         THRESHOLD=='Average')
-since.adm.calib.slope <- ggplot() +
+         METRIC == 'CALIB_SLOPE',
+         THRESHOLD=='Average') %>%
+  ggplot() +
   coord_cartesian(xlim=c(0,7),ylim=c(0,1.5)) +
   geom_vline(xintercept = 0.33333333, color='dark gray',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_vline(xintercept = 1, color='#bc5090',alpha = 1, size=1.3/.pt, linetype = "dashed")+
   geom_hline(yintercept = 1, color='#ffa600',alpha = 1, size=2/.pt)+
-  geom_line(data=old.calibration.CIs,aes(x=DaysAfterICUAdmission,y=median),alpha = 1, size=1.3/.pt,color='dark gray')+
-  geom_line(data=old.calibration.CIs,aes(x=DaysAfterICUAdmission,y=lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=old.calibration.CIs,aes(x=DaysAfterICUAdmission,y=hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=new.calibration.CIs,aes(x=DaysAfterICUAdmission,y=median),alpha = 1, size=1.3/.pt,color='#bc5090') + 
-  geom_ribbon(data=new.calibration.CIs,aes(x=DaysAfterICUAdmission,ymin=lo,ymax=hi),alpha=.2,size=.75/.pt,fill='#bc5090') + 
+  # geom_line(data=old.calibration.CIs,aes(x=DaysAfterICUAdmission,y=median),alpha = 1, size=1.3/.pt,color='dark gray')+
+  # geom_line(data=old.calibration.CIs,aes(x=DaysAfterICUAdmission,y=lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  # geom_line(data=old.calibration.CIs,aes(x=DaysAfterICUAdmission,y=hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  geom_line(aes(x=DaysAfterICUAdmission,y=median,color=VERSION),alpha = 1, size=1.3/.pt) + 
+  geom_ribbon(aes(x=DaysAfterICUAdmission,ymin=lo,ymax=hi,fill=VERSION),alpha=.2,size=.75/.pt) + 
   scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0,0))) +
   ylab('Calibration slope')+
   xlab('Days since ICU admission') + 
+  scale_fill_manual(values = c("#003f5c", "#bc5090"))+
+  scale_color_manual(values = c("#003f5c", "#bc5090"))+
   theme_minimal(base_family = 'Roboto Condensed') +
   theme(
     panel.grid.minor.x = element_blank(),
     axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
     axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
     axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
   )
 
 # Before discharge calibration slope plot
-new.calibration.CIs  <- calibration.CIs %>%
+before.disch.calib.slope <- rbind(calibration.CIs,baseline.calibration.CIs) %>%
   filter(!SinceAdmission,
-         METRIC=='CALIB_SLOPE',
+         METRIC == 'CALIB_SLOPE',
          THRESHOLD=='Average') %>%
-  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission))
-old.calibration.CIs  <- baseline.calibration.CIs %>%
-  filter(!SinceAdmission,
-         METRIC=='CALIB_SLOPE',
-         THRESHOLD=='Average') %>%
-  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission))
-before.disch.calib.slope <- ggplot() +
+  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission)) %>%
+  ggplot() +
   coord_cartesian(xlim=c(7,0), ylim = c(0,1.5)) +
   geom_hline(yintercept = 1, color='#ffa600',alpha = 1, size=2/.pt) +
-  geom_line(data=old.calibration.CIs,aes(x=DaysBeforeICUDischarge,y=median),alpha = 1, size=1.3/.pt,color='dark gray')+
-  geom_line(data=old.calibration.CIs,aes(x=DaysBeforeICUDischarge,y=lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=old.calibration.CIs,aes(x=DaysBeforeICUDischarge,y=hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
-  geom_line(data=new.calibration.CIs,aes(x=DaysBeforeICUDischarge,y=median),alpha = 1, size=1.3/.pt,color='#bc5090') + 
-  geom_ribbon(data=new.calibration.CIs,aes(x=DaysBeforeICUDischarge,ymin=lo,ymax=hi),alpha=.2,size=.75/.pt,fill='#bc5090') + 
+  # geom_line(data=old.calibration.CIs,aes(x=DaysBeforeICUDischarge,y=median),alpha = 1, size=1.3/.pt,color='dark gray')+
+  # geom_line(data=old.calibration.CIs,aes(x=DaysBeforeICUDischarge,y=lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  # geom_line(data=old.calibration.CIs,aes(x=DaysBeforeICUDischarge,y=hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  geom_line(aes(x=DaysBeforeICUDischarge,y=median,color=VERSION),alpha = 1, size=1.3/.pt) + 
+  geom_ribbon(aes(x=DaysBeforeICUDischarge,ymin=lo,ymax=hi,fill=VERSION),alpha=.2,size=.75/.pt) + 
   scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(0,0))) +
   ylab('Calibration slope') +
   xlab('Days before ICU discharge') +
+  scale_fill_manual(values = c("#003f5c", "#bc5090"))+
+  scale_color_manual(values = c("#003f5c", "#bc5090"))+
   theme_minimal(base_family = 'Roboto Condensed') +
   theme(
     panel.grid.minor.x = element_blank(),
     axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
     axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
     axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
   )
 
 # Create directory for current date and save post-admission and pre-discharge calibration slope plots
@@ -369,6 +210,236 @@ since.adm.ICI <- calibration.CIs %>%
   mutate(WINDOW_IDX = fct_relevel(WINDOW_IDX,'2 hrs.','8 hrs.','1 day','2 days')) %>%
   mutate(formatted = sprintf('%s: %.2f (%.2f–%.2f)',WINDOW_IDX,median,lo,hi)) %>%
   arrange(THRESHOLD,WINDOW_IDX)
+
+### III. Figure 2
+## Prepare overall performance dataframes
+# Discrimination results
+discrimination.CIs <- read.csv('../model_performance/v6-0/test_set_discrimination_CI.csv',
+                               na.strings = c("NA","NaN","", " ")) %>%
+  mutate(VERSION = 6,
+         SinceAdmission = WINDOW_IDX > 0)
+discrimination.CIs$WINDOW_IDX[!discrimination.CIs$SinceAdmission] <- discrimination.CIs$WINDOW_IDX[!discrimination.CIs$SinceAdmission] + 1
+discrimination.CIs <- discrimination.CIs %>%
+  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
+
+# Static discrimination results
+static.discrimination.CIs <- read.csv('../model_performance/v6-0/static_set_discrimination_CI.csv',
+                                      na.strings = c("NA","NaN","", " "))  %>%
+  mutate(VERSION = 'Static',
+         SinceAdmission = WINDOW_IDX > 0)
+static.discrimination.CIs$WINDOW_IDX[!static.discrimination.CIs$SinceAdmission] <- static.discrimination.CIs$WINDOW_IDX[!static.discrimination.CIs$SinceAdmission] + 1
+static.discrimination.CIs <- static.discrimination.CIs %>%
+  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
+
+# Baseline discrimination results
+baseline.discrimination.CIs <- read.csv('../model_performance/BaselineComparison/test_set_discrimination_CI.csv',
+                                        na.strings = c("NA","NaN","", " ")) %>%
+  mutate(VERSION = 'Baseline',
+         SinceAdmission = WINDOW_IDX > 0)
+baseline.discrimination.CIs$WINDOW_IDX[!baseline.discrimination.CIs$SinceAdmission] <- baseline.discrimination.CIs$WINDOW_IDX[!baseline.discrimination.CIs$SinceAdmission] + 1
+baseline.discrimination.CIs <- baseline.discrimination.CIs %>%
+  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
+
+# Difference in discrimination between full-model and static variables
+static.difference.CIs <- read.csv('../model_performance/v6-0/static_test_set_discrimination_difference_CI.csv',
+                                  na.strings = c("NA","NaN","", " ")) %>%
+  filter(METRIC == 'Somers D') %>%
+  mutate(SinceAdmission = WINDOW_IDX > 0,
+         VERSION = 'Static') %>%
+  drop_na(median)
+static.difference.CIs$WINDOW_IDX[!static.difference.CIs$SinceAdmission] <- static.difference.CIs$WINDOW_IDX[!static.difference.CIs$SinceAdmission] + 1
+static.difference.CIs <- static.difference.CIs %>%
+  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
+
+# Difference in discrimination between full-model and IMPACT
+baseline.difference.CIs <- read.csv('../model_performance/BaselineComparison/test_set_discrimination_difference_CI.csv',
+                                    na.strings = c("NA","NaN","", " ")) %>%
+  filter(METRIC == 'Somers D') %>%
+  mutate(SinceAdmission = WINDOW_IDX > 0,
+         VERSION = 'Baseline') %>%
+  drop_na(median)
+baseline.difference.CIs$WINDOW_IDX[!baseline.difference.CIs$SinceAdmission] <- baseline.difference.CIs$WINDOW_IDX[!baseline.difference.CIs$SinceAdmission] + 1
+baseline.difference.CIs <- baseline.difference.CIs %>%
+  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
+
+## Create overall discrimination performance plots
+# Since admission Somers' D plot
+since.adm.somers <- rbind(discrimination.CIs,baseline.discrimination.CIs) %>%
+  filter(SinceAdmission,
+         METRIC == 'Somers D') %>%
+  ggplot() +
+  coord_cartesian(xlim=c(0,7), ylim = c(27.5,55)) +
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
+  geom_vline(xintercept = 1, color='#bc5090',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  # geom_line(data=old.discrimination.CIs,aes(x=DaysAfterICUAdmission,y=100*median),alpha = 1, size=1.3/.pt,color='dark gray')+
+  # geom_line(data=old.discrimination.CIs,aes(x=DaysAfterICUAdmission,y=100*lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  # geom_line(data=old.discrimination.CIs,aes(x=DaysAfterICUAdmission,y=100*hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  geom_line(aes(x=DaysAfterICUAdmission,y=100*median,color=VERSION),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=DaysAfterICUAdmission,ymin=lo*100,ymax=hi*100,fill=VERSION),alpha=.2) +
+  ylab('Explanation of ordinal GOSE (%)')+
+  xlab('Days since ICU admission')+
+  scale_fill_manual(values = c("#003f5c", "#bc5090"))+
+  scale_color_manual(values = c("#003f5c", "#bc5090"))+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
+  )
+
+# Before discharge Somers' D plot
+before.disch.somers <- rbind(discrimination.CIs,baseline.discrimination.CIs) %>%
+  filter(!SinceAdmission,
+         METRIC == 'Somers D') %>%
+  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission)) %>%
+  ggplot() +
+  scale_x_reverse(expand = expansion(mult = c(.0, .0)),breaks=seq(0,7,by=1))+
+  coord_cartesian(xlim=c(7,0), ylim = c(27.5,55)) +
+  # geom_line(data=old.discrimination.CIs,aes(x=DaysBeforeICUDischarge,y=100*median),alpha = 1, size=1.3/.pt,color='dark gray')+
+  # geom_line(data=old.discrimination.CIs,aes(x=DaysBeforeICUDischarge,y=100*lo),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  # geom_line(data=old.discrimination.CIs,aes(x=DaysBeforeICUDischarge,y=100*hi),alpha = 1, size=1.3/.pt,color='dark gray',linetype = "dashed")+
+  geom_line(aes(x=DaysBeforeICUDischarge,y=100*median,color=VERSION),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=DaysBeforeICUDischarge,ymin=lo*100,ymax=hi*100,fill=VERSION),alpha=.2) +
+  ylab('Explanation of ordinal GOSE (%)')+
+  xlab('Days before ICU discharge')+
+  scale_fill_manual(values = c("#003f5c", "#bc5090"))+
+  scale_color_manual(values = c("#003f5c", "#bc5090"))+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
+  )
+
+# Create directory for current date and save post-admission and pre-discharge Somers' D plots
+dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
+ggsave(file.path('../plots',Sys.Date(),'since_adm_somers.svg'),since.adm.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
+ggsave(file.path('../plots',Sys.Date(),'before_disch_somers.svg'),before.disch.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
+
+## Create overall discrimination difference over baseline plots
+# Since admission difference in Somers' D plot
+since.adm.baseline.diff.somers <- rbind(baseline.difference.CIs,static.difference.CIs) %>%
+  filter(SinceAdmission) %>%
+  ggplot() +
+  coord_cartesian(xlim=c(0,7), ylim = c(0,15)) +
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
+  geom_vline(xintercept = 1, color='#bc5090',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_line(aes(x=DaysAfterICUAdmission,y=100*median,color=VERSION),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=DaysAfterICUAdmission,ymin=lo*100,ymax=hi*100,fill=VERSION),alpha=.2) +
+  ylab('Added explanation of ordinal GOSE (d%)')+
+  xlab('Days since ICU admission')+
+  scale_fill_manual(values = c("#bc5090","#003f5c"))+
+  scale_color_manual(values = c("#bc5090","#003f5c"))+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
+  )
+
+# Before discharge difference in Somers' D plot
+before.disch.baseline.diff.somers <- rbind(baseline.difference.CIs,static.difference.CIs) %>%
+  filter(!SinceAdmission) %>%
+  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission)) %>%
+  ggplot() +
+  scale_x_reverse(expand = expansion(mult = c(.0, .0)),breaks=seq(0,7,by=1))+
+  coord_cartesian(xlim=c(7,0), ylim = c(0,15)) +
+  geom_line(aes(x=DaysBeforeICUDischarge,y=100*median,color=VERSION),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=DaysBeforeICUDischarge,ymin=lo*100,ymax=hi*100,fill=VERSION),alpha=.2) +
+  ylab('Added explanation of ordinal GOSE (d%)')+
+  xlab('Days before ICU discharge')+
+  scale_fill_manual(values = c("#bc5090","#003f5c"))+
+  scale_color_manual(values = c("#bc5090","#003f5c"))+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
+  )
+
+# Create directory for current date and save post-admission and pre-discharge Somers' D plots
+dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
+ggsave(file.path('../plots',Sys.Date(),'since_adm_baseline_diff_somers.svg'),since.adm.baseline.diff.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
+ggsave(file.path('../plots',Sys.Date(),'before_disch_baseline_diff_somers.svg'),before.disch.baseline.diff.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
+
+## Discharge cutoff sensitivity analysis
+# Load and prepare cutoff mean analysis dataframe
+cutoff.mean.analysis <- read.csv('../model_performance/v6-0/sensitivity_cutoff_mean_difference_CI.csv',
+                                 na.strings = c("NA","NaN","", " ")) %>%
+  mutate(CutoffDays = CUTOFF_IDX/12)
+
+# Load and prepare cutoff discrimination difference dataframe
+cutoff.discrimination <- read.csv('../model_performance/v6-0/sensitivity_cutoff_discrimination_CI.csv',
+                                  na.strings = c("NA","NaN","", " ")) %>%
+  mutate(VERSION = 6,
+         SinceAdmission = WINDOW_IDX > 0)
+cutoff.discrimination$WINDOW_IDX[!cutoff.discrimination$SinceAdmission] <- cutoff.discrimination$WINDOW_IDX[!cutoff.discrimination$SinceAdmission] + 1
+cutoff.discrimination <- cutoff.discrimination %>%
+  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
+
+# Trajectory of mean difference in Somers' D vs. discharge cutoff
+cutoff.mean.somers.diff.plot <- cutoff.mean.analysis %>%
+  filter(METRIC == 'Somers D',
+         CutoffDays>1) %>%
+  ggplot() +
+  coord_cartesian(xlim=c(0,7), ylim = c(-15,19)) +
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
+  geom_vline(xintercept = 13/12, color='dark gray',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_hline(yintercept = 0, color='#ffa600',alpha = 1, size=2/.pt) +
+  geom_line(aes(x=CutoffDays,y=100*median),alpha = 1, size=1.3/.pt,color="#003f5c")+
+  geom_ribbon(aes(x=CutoffDays,ymin=lo*100,ymax=hi*100),alpha=.2,fill="#003f5c") +
+  ylab('Mean difference in ordinal GOSE explanation (%)')+
+  xlab('ICU stay duration cutoff (days)')+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
+  )
+
+# Create directory for current date and save trajectory of mean difference in Somers' D vs. discharge cutoff
+dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
+ggsave(file.path('../plots',Sys.Date(),'cutoff_diff_Somers_plot.svg'),cutoff.mean.somers.diff.plot,device= svglite,units='in',dpi=600,width=3.7,height = 1.53)
+
+
+
+
+cutoff.discrimination %>%
+  filter(CUTOFF_IDX == 73,
+         variable != 'CUTOFF_DIFFERENCE',
+         METRIC == 'Somers D') %>%
+  ggplot() +
+  #coord_cartesian(xlim=c(0,7), ylim = c(0,10)) +
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
+  geom_line(aes(x=DaysAfterICUAdmission,y=100*median,color=variable),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=DaysAfterICUAdmission,ymin=lo*100,ymax=hi*100,fill=variable),alpha=.2) +
+  ylab('Explanation of ordinal GOSE (%)')+
+  xlab('Days since ICU admission')+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
+  )
+
+
 
 ## Create bi-directional distribution plot of significant transitions
 # Load dataframe of significant transitions
@@ -783,16 +854,7 @@ dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
 ggsave(file.path('../plots',Sys.Date(),'indiv_event_heatmaps.svg'),indiv.event.timeshap.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
 
 ### VI. Supplementary Figures 5 and 6
-## Load and prepare confidence intervals of discrimination differences
-baseline.difference.CIs <- read.csv('../model_performance/BaselineComparison/test_set_discrimination_difference_CI.csv',
-                                    na.strings = c("NA","NaN","", " ")) %>%
-  filter(METRIC == 'Somers D') %>%
-  mutate(SinceAdmission = WINDOW_IDX > 0) %>%
-  drop_na(median)
-baseline.difference.CIs$WINDOW_IDX[!baseline.difference.CIs$SinceAdmission] <- baseline.difference.CIs$WINDOW_IDX[!baseline.difference.CIs$SinceAdmission] + 1
-baseline.difference.CIs <- baseline.difference.CIs %>%
-  mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
-
+## Prepare dataframes
 physician.difference.CIs <- read.csv('../model_performance/v6-0/test_set_discrimination_difference_CI.csv',
                                      na.strings = c("NA","NaN","", " ")) %>%
   filter(METRIC == 'Somers D') %>%
@@ -824,52 +886,6 @@ v7.discrimination.CIs <- v7.discrimination.CIs %>%
   mutate(DaysAfterICUAdmission = WINDOW_IDX/12)
 
 discrimination.CIs <- rbind(discrimination.CIs,v7.discrimination.CIs)
-
-## Create overall discrimination difference over baseline plots
-# Since admission difference in Somers' D plot
-since.adm.baseline.diff.somers <- baseline.difference.CIs %>%
-  filter(SinceAdmission) %>%
-  ggplot() +
-  coord_cartesian(xlim=c(0,7), ylim = c(0,15)) +
-  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
-  geom_vline(xintercept = 1, color='dark gray',alpha = 1, size=1.3/.pt, linetype = "dashed")+
-  geom_line(aes(x=DaysAfterICUAdmission,y=100*median),alpha = 1, size=1.3/.pt,color='#003f5c')+
-  geom_ribbon(aes(x=DaysAfterICUAdmission,ymin=lo*100,ymax=hi*100),alpha=.2,fill='#003f5c') +
-  ylab('Added explanation of ordinal GOSE (d%)')+
-  xlab('Days since ICU admission')+
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    panel.grid.minor.x = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
-  )
-
-# Before discharge difference in Somers' D plot
-before.disch.baseline.diff.somers <- baseline.difference.CIs %>%
-  filter(!SinceAdmission) %>%
-  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission)) %>%
-  ggplot() +
-  scale_x_reverse(expand = expansion(mult = c(.0, .0)),breaks=seq(0,7,by=1))+
-  coord_cartesian(xlim=c(7,0), ylim = c(0,15)) +
-  geom_line(aes(x=DaysBeforeICUDischarge,y=100*median),alpha = 1, size=1.3/.pt,color='#003f5c')+
-  geom_ribbon(aes(x=DaysBeforeICUDischarge,ymin=lo*100,ymax=hi*100),alpha=.2,fill='#003f5c') +
-  ylab('Added explanation of ordinal GOSE (d%)')+
-  xlab('Days before ICU discharge')+
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    panel.grid.minor.x = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
-  )
-
-# Create directory for current date and save post-admission and pre-discharge Somers' D plots
-dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'since_adm_baseline_diff_somers.svg'),since.adm.baseline.diff.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
-ggsave(file.path('../plots',Sys.Date(),'before_disch_baseline_diff_somers.svg'),before.disch.baseline.diff.somers,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
 
 ## Create overall discrimination added with physician impression plots
 # Since admission Somers' D plot with both models

@@ -38,5 +38,14 @@ In this `.py` file, we create 100 partitions, stratified by 6-month GOSE, for re
   <li><h4><a href="05h_baseline_test_set_confidence_intervals.py">Compile testing set baseline prediction model performance metrics and calculate confidence intervals for comparison</a></h4> In this <code>.py</code> file, compile the baseline model performance metrics and summarise them across bootstrapping resamples to define the 95% confidence intervals for statistical inference. </li>
 </ol>
 
-### 7. [Visualise study results for manuscript](06_manuscript_visualisations.R)
+### 6. Sensitivity analysis to parse effect of length of stay
+
+<ol type="a">
+  <li><h4><a href="06a_prepare_for_sensitivity_analysis.py">Prepare for sensitivity analysis to account for differences in patient stay</a></h4> In this <code>.py</code> file, we construct a list of model trajectories to generate from just the static variable set, compile static variable outputs, prepare bootstrapping resamples for ICU stay duration cut-off analysis, and characterise characteristics of study population remaining in the ICU over time.</li>
+  <li><h4><a href="06b_static_only_test_set_predictions.py">Calculate testing set outputs with dynamic tokens removed in parallel</a></h4> In this <code>.py</code> file, we generate patient trajectories solely based on static variables for baseline comparison based on provided bootstrapping resample row index. This is run, with multi-array indexing, on the HPC using a <a href="06b_static_only_test_set_predictions.sh">bash script</a>.</li>
+  <li><h4><a href="06c_sensitivity_performance.py">Calculate metrics for test set performance for sensitivity analysis</a></h4> In this <code>.py</code> file, we calculate testing set sensitivity analysis metrics based on provided bootstrapping resample row index. This is run, with multi-array indexing, on the HPC using a <a href="06c_sensitivity_performance.sh">bash script</a>.</li>
+  <li><h4><a href="06d_sensitivity_confidence_intervals.py">Compile performance results from sensitivity analysis to calculate confidence intervals</a></h4> In this <code>.py</code> file, we load all the calculated sensitivity testing set performance values and summarise them for statistical inference for our sensitivity analysis. </li>
+  </ol>
+
+### 7. [Visualise study results for manuscript](07_manuscript_visualisations.R)
 In this `.R` file, we produce the figures for the manuscript and the supplementary figures. The large majority of the quantitative figures in the manuscript are produced using the `ggplot` package.

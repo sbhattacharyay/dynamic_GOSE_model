@@ -119,192 +119,239 @@ def main(array_task_id):
     from_discharge_static_predictions_df = static_predictions_df.copy()
     from_discharge_static_predictions_df['WindowIdx'] = from_discharge_static_predictions_df['WindowIdx'] - from_discharge_static_predictions_df['WindowTotal'] - 1
 
-    # Calculate testing set ORC for every Tuning Index, Window Index combination of in-sample sets and calculate difference
-    testing_set_ORCs = calc_test_ORC(test_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating testing set ORC')
-    static_set_ORCs = calc_test_ORC(static_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating static-only testing set ORC').rename(columns={'VALUE':'STATIC_VALUE'})
-    combined_set_ORCs = testing_set_ORCs.merge(static_set_ORCs,how='left')
-    # combined_set_ORCs['ADDED_VALUE'] = combined_set_ORCs['VALUE'] - combined_set_ORCs['STATIC_VALUE']
+#     # Calculate testing set ORC for every Tuning Index, Window Index combination of in-sample sets and calculate difference
+#     testing_set_ORCs = calc_test_ORC(test_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating testing set ORC')
+#     static_set_ORCs = calc_test_ORC(static_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating static-only testing set ORC').rename(columns={'VALUE':'STATIC_VALUE'})
+#     combined_set_ORCs = testing_set_ORCs.merge(static_set_ORCs,how='left')
+#     # combined_set_ORCs['ADDED_VALUE'] = combined_set_ORCs['VALUE'] - combined_set_ORCs['STATIC_VALUE']
 
-    # Calculate from-discharge testing set ORC for every Tuning Index, Window Index combination
-    from_discharge_testing_set_ORCs = calc_test_ORC(from_discharge_test_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating testing set ORC from discharge')
-    from_discharge_static_set_ORCs = calc_test_ORC(from_discharge_static_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating static-only testing set ORC from discharge').rename(columns={'VALUE':'STATIC_VALUE'})
-    from_discharge_combined_set_ORCs = from_discharge_testing_set_ORCs.merge(from_discharge_static_set_ORCs,how='left')
-    # from_discharge_combined_set_ORCs['ADDED_VALUE'] = from_discharge_combined_set_ORCs['VALUE'] - from_discharge_combined_set_ORCs['STATIC_VALUE']
+#     # Calculate from-discharge testing set ORC for every Tuning Index, Window Index combination
+#     from_discharge_testing_set_ORCs = calc_test_ORC(from_discharge_test_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating testing set ORC from discharge')
+#     from_discharge_static_set_ORCs = calc_test_ORC(from_discharge_static_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating static-only testing set ORC from discharge').rename(columns={'VALUE':'STATIC_VALUE'})
+#     from_discharge_combined_set_ORCs = from_discharge_testing_set_ORCs.merge(from_discharge_static_set_ORCs,how='left')
+#     # from_discharge_combined_set_ORCs['ADDED_VALUE'] = from_discharge_combined_set_ORCs['VALUE'] - from_discharge_combined_set_ORCs['STATIC_VALUE']
 
-    # Calculate testing set Somers' D for every Tuning Index, Window Index combination
-    testing_set_Somers_D = calc_test_Somers_D(test_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating testing set Somers D')
-    static_set_Somers_D = calc_test_Somers_D(static_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating static-only testing set Somers D').rename(columns={'VALUE':'STATIC_VALUE'})
-    combined_set_Somers_D = testing_set_Somers_D.merge(static_set_Somers_D,how='left')
-    # combined_set_Somers_D['ADDED_VALUE'] = combined_set_Somers_D['VALUE'] - combined_set_Somers_D['STATIC_VALUE']
+#     # Calculate testing set Somers' D for every Tuning Index, Window Index combination
+#     testing_set_Somers_D = calc_test_Somers_D(test_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating testing set Somers D')
+#     static_set_Somers_D = calc_test_Somers_D(static_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating static-only testing set Somers D').rename(columns={'VALUE':'STATIC_VALUE'})
+#     combined_set_Somers_D = testing_set_Somers_D.merge(static_set_Somers_D,how='left')
+#     # combined_set_Somers_D['ADDED_VALUE'] = combined_set_Somers_D['VALUE'] - combined_set_Somers_D['STATIC_VALUE']
 
-    # Calculate from-discharge testing set Somers' D for every Tuning Index, Window Index combination
-    from_discharge_testing_set_Somers_D = calc_test_Somers_D(from_discharge_test_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating testing set Somers D from discharge')
-    from_discharge_static_set_Somers_D = calc_test_Somers_D(from_discharge_static_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating static-only testing set Somers D from discharge').rename(columns={'VALUE':'STATIC_VALUE'})
-    from_discharge_combined_set_Somers_D = from_discharge_testing_set_Somers_D.merge(from_discharge_static_set_Somers_D,how='left')
-    # from_discharge_combined_set_Somers_D['ADDED_VALUE'] = from_discharge_combined_set_Somers_D['VALUE'] - from_discharge_combined_set_Somers_D['STATIC_VALUE']
+#     # Calculate from-discharge testing set Somers' D for every Tuning Index, Window Index combination
+#     from_discharge_testing_set_Somers_D = calc_test_Somers_D(from_discharge_test_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating testing set Somers D from discharge')
+#     from_discharge_static_set_Somers_D = calc_test_Somers_D(from_discharge_static_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating static-only testing set Somers D from discharge').rename(columns={'VALUE':'STATIC_VALUE'})
+#     from_discharge_combined_set_Somers_D = from_discharge_testing_set_Somers_D.merge(from_discharge_static_set_Somers_D,how='left')
+#     # from_discharge_combined_set_Somers_D['ADDED_VALUE'] = from_discharge_combined_set_Somers_D['VALUE'] - from_discharge_combined_set_Somers_D['STATIC_VALUE']
 
-    # Concatenate testing discrimination metrics, add resampling index and save
-    testing_set_discrimination = pd.concat([combined_set_ORCs,from_discharge_combined_set_ORCs,combined_set_Somers_D,from_discharge_combined_set_Somers_D],ignore_index=True)
-    # testing_set_discrimination['RESAMPLE_IDX'] = curr_rs_idx
-    # testing_set_discrimination.to_pickle(os.path.join(test_bs_dir,'test_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+#     # Concatenate testing discrimination metrics, add resampling index and save
+#     testing_set_discrimination = pd.concat([combined_set_ORCs,from_discharge_combined_set_ORCs,combined_set_Somers_D,from_discharge_combined_set_Somers_D],ignore_index=True)
+#     # testing_set_discrimination['RESAMPLE_IDX'] = curr_rs_idx
+#     # testing_set_discrimination.to_pickle(os.path.join(test_bs_dir,'test_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
     
-    # Calculate testing set threshold-level calibration metrics for every Tuning Index, Window Index combination
-    testing_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating testing set threshold calbration metrics')
-    static_set_thresh_calibration = calc_test_thresh_calibration(static_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating static-only testing set threshold calbration metrics').rename(columns={'VALUE':'STATIC_VALUE'})
-    combined_set_thresh_calibration = testing_set_thresh_calibration.merge(static_set_thresh_calibration,how='left')
-    # combined_set_thresh_calibration['ADDED_VALUE'] = combined_set_thresh_calibration['STATIC_VALUE'] - combined_set_thresh_calibration['VALUE']
-    # combined_set_thresh_calibration.ADDED_VALUE[combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] = (combined_set_thresh_calibration.STATIC_VALUE[combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs() - (combined_set_thresh_calibration.VALUE[combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs()
+#     # Calculate testing set threshold-level calibration metrics for every Tuning Index, Window Index combination
+#     testing_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating testing set threshold calbration metrics')
+#     static_set_thresh_calibration = calc_test_thresh_calibration(static_predictions_df.merge(curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(1,85)),True,'Calculating static-only testing set threshold calbration metrics').rename(columns={'VALUE':'STATIC_VALUE'})
+#     combined_set_thresh_calibration = testing_set_thresh_calibration.merge(static_set_thresh_calibration,how='left')
+#     # combined_set_thresh_calibration['ADDED_VALUE'] = combined_set_thresh_calibration['STATIC_VALUE'] - combined_set_thresh_calibration['VALUE']
+#     # combined_set_thresh_calibration.ADDED_VALUE[combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] = (combined_set_thresh_calibration.STATIC_VALUE[combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs() - (combined_set_thresh_calibration.VALUE[combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs()
 
-    # Calculate testing set from-discharge threshold-level calibration metrics for every Tuning Index, Window Index combination
-    from_discharge_testing_set_thresh_calibration = calc_test_thresh_calibration(from_discharge_test_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating testing set threshold calbration metrics from discharge')
-    from_discharge_static_set_thresh_calibration = calc_test_thresh_calibration(from_discharge_static_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating static-only testing set threshold calbration metrics from discharge').rename(columns={'VALUE':'STATIC_VALUE'})
-    from_discharge_combined_set_thresh_calibration = from_discharge_testing_set_thresh_calibration.merge(from_discharge_static_set_thresh_calibration,how='left')
-    # from_discharge_combined_set_thresh_calibration['ADDED_VALUE'] = from_discharge_combined_set_thresh_calibration['STATIC_VALUE'] - from_discharge_combined_set_thresh_calibration['VALUE']
-    # from_discharge_combined_set_thresh_calibration.ADDED_VALUE[from_discharge_combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] = (from_discharge_combined_set_thresh_calibration.STATIC_VALUE[from_discharge_combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs() - (from_discharge_combined_set_thresh_calibration.VALUE[from_discharge_combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs()
+#     # Calculate testing set from-discharge threshold-level calibration metrics for every Tuning Index, Window Index combination
+#     from_discharge_testing_set_thresh_calibration = calc_test_thresh_calibration(from_discharge_test_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating testing set threshold calbration metrics from discharge')
+#     from_discharge_static_set_thresh_calibration = calc_test_thresh_calibration(from_discharge_static_predictions_df.merge(from_disch_curr_bs_rs[['GUPI','WindowIdx']],how='inner'),list(range(-85,0)),True,'Calculating static-only testing set threshold calbration metrics from discharge').rename(columns={'VALUE':'STATIC_VALUE'})
+#     from_discharge_combined_set_thresh_calibration = from_discharge_testing_set_thresh_calibration.merge(from_discharge_static_set_thresh_calibration,how='left')
+#     # from_discharge_combined_set_thresh_calibration['ADDED_VALUE'] = from_discharge_combined_set_thresh_calibration['STATIC_VALUE'] - from_discharge_combined_set_thresh_calibration['VALUE']
+#     # from_discharge_combined_set_thresh_calibration.ADDED_VALUE[from_discharge_combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] = (from_discharge_combined_set_thresh_calibration.STATIC_VALUE[from_discharge_combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs() - (from_discharge_combined_set_thresh_calibration.VALUE[from_discharge_combined_set_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs()
 
-    # Compile testing calibration from-admission and from-discharge metrics
-    testing_set_thresh_calibration = pd.concat([combined_set_thresh_calibration,from_discharge_combined_set_thresh_calibration],ignore_index=True)
+#     # Compile testing calibration from-admission and from-discharge metrics
+#     testing_set_thresh_calibration = pd.concat([combined_set_thresh_calibration,from_discharge_combined_set_thresh_calibration],ignore_index=True)
     
-    # Calculate macro-average calibration slopes across the thresholds
-    macro_average_thresh_calibration = testing_set_thresh_calibration.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).VALUE.mean()
-    macro_average_thresh_calibration.insert(2,'THRESHOLD',['Average' for idx in range(macro_average_thresh_calibration.shape[0])])
-    static_macro_average_thresh_calibration = testing_set_thresh_calibration.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).STATIC_VALUE.mean()
-    static_macro_average_thresh_calibration.insert(2,'THRESHOLD',['Average' for idx in range(static_macro_average_thresh_calibration.shape[0])])
-    macro_average_thresh_calibration = macro_average_thresh_calibration.merge(static_macro_average_thresh_calibration,how='left')
-    # macro_average_thresh_calibration['ADDED_VALUE'] = macro_average_thresh_calibration['STATIC_VALUE'] - macro_average_thresh_calibration['VALUE']
-    # macro_average_thresh_calibration.ADDED_VALUE[macro_average_thresh_calibration.METRIC=='CALIB_SLOPE'] = (macro_average_thresh_calibration.STATIC_VALUE[macro_average_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs() - (macro_average_thresh_calibration.VALUE[macro_average_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs()
+#     # Calculate macro-average calibration slopes across the thresholds
+#     macro_average_thresh_calibration = testing_set_thresh_calibration.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).VALUE.mean()
+#     macro_average_thresh_calibration.insert(2,'THRESHOLD',['Average' for idx in range(macro_average_thresh_calibration.shape[0])])
+#     static_macro_average_thresh_calibration = testing_set_thresh_calibration.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).STATIC_VALUE.mean()
+#     static_macro_average_thresh_calibration.insert(2,'THRESHOLD',['Average' for idx in range(static_macro_average_thresh_calibration.shape[0])])
+#     macro_average_thresh_calibration = macro_average_thresh_calibration.merge(static_macro_average_thresh_calibration,how='left')
+#     # macro_average_thresh_calibration['ADDED_VALUE'] = macro_average_thresh_calibration['STATIC_VALUE'] - macro_average_thresh_calibration['VALUE']
+#     # macro_average_thresh_calibration.ADDED_VALUE[macro_average_thresh_calibration.METRIC=='CALIB_SLOPE'] = (macro_average_thresh_calibration.STATIC_VALUE[macro_average_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs() - (macro_average_thresh_calibration.VALUE[macro_average_thresh_calibration.METRIC=='CALIB_SLOPE'] - 1).abs()
 
-    # Add macro-average information to threshold-level calibration dataframe and sort
-    testing_set_thresh_calibration = pd.concat([testing_set_thresh_calibration,macro_average_thresh_calibration],ignore_index=True).sort_values(by=['TUNE_IDX','WINDOW_IDX','THRESHOLD','METRIC']).reset_index(drop=True)
+#     # Add macro-average information to threshold-level calibration dataframe and sort
+#     testing_set_thresh_calibration = pd.concat([testing_set_thresh_calibration,macro_average_thresh_calibration],ignore_index=True).sort_values(by=['TUNE_IDX','WINDOW_IDX','THRESHOLD','METRIC']).reset_index(drop=True)
     
-    # Add resampling index and save
-    # testing_set_thresh_calibration['RESAMPLE_IDX'] = curr_rs_idx
-    # testing_set_thresh_calibration.to_pickle(os.path.join(test_bs_dir,'test_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+#     # Add resampling index and save
+#     # testing_set_thresh_calibration['RESAMPLE_IDX'] = curr_rs_idx
+#     # testing_set_thresh_calibration.to_pickle(os.path.join(test_bs_dir,'test_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
 
-    ## Calculate difference between first window performance and performance over time
-    # Create empty lists to store discrimination and calibration performance dataframes
-    first_window_discrimination_list = []
-    first_window_calibrations_list = []
+#     ## Calculate difference between first window performance and performance over time
+#     # Create empty lists to store discrimination and calibration performance dataframes
+#     first_window_discrimination_list = []
+#     first_window_calibrations_list = []
 
-    # Iterate through after-admission window indices
-    for curr_wi in tqdm(range(1,85),'Calculating differential increase in performance over time'):
+#     # Iterate through after-admission window indices
+#     for curr_wi in tqdm(range(1,85),'Calculating differential increase in performance over time'):
         
-        # Extract current GUPI set
-        curr_wi_GUPIs = curr_bs_rs[curr_bs_rs.WindowIdx==curr_wi].reset_index(drop=True)
-        curr_wi_GUPIs['WindowIdx'] = 1
+#         # Extract current GUPI set
+#         curr_wi_GUPIs = curr_bs_rs[curr_bs_rs.WindowIdx==curr_wi].reset_index(drop=True)
+#         curr_wi_GUPIs['WindowIdx'] = 1
         
-        # Calculate first window ORC of current window index set
-        first_window_set_ORCs = calc_test_ORC(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set ORC').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
-        first_window_set_ORCs['WINDOW_IDX'] = curr_wi
+#         # Calculate first window ORC of current window index set
+#         first_window_set_ORCs = calc_test_ORC(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set ORC').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
+#         first_window_set_ORCs['WINDOW_IDX'] = curr_wi
 
-        # Calculate first window Somers' D of current window index set
-        first_window_set_Somers_D = calc_test_Somers_D(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set Somers D').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
-        first_window_set_Somers_D['WINDOW_IDX'] = curr_wi
+#         # Calculate first window Somers' D of current window index set
+#         first_window_set_Somers_D = calc_test_Somers_D(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set Somers D').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
+#         first_window_set_Somers_D['WINDOW_IDX'] = curr_wi
         
-        # Append first window ORC and Somers' D to running discrimination list
-        first_window_discrimination_list.append(first_window_set_ORCs)
-        first_window_discrimination_list.append(first_window_set_Somers_D)
+#         # Append first window ORC and Somers' D to running discrimination list
+#         first_window_discrimination_list.append(first_window_set_ORCs)
+#         first_window_discrimination_list.append(first_window_set_Somers_D)
 
-        # Calculate first window threshold-level calibration of current window index set
-        first_window_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set threshold calbration metrics').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
-        first_window_set_thresh_calibration['WINDOW_IDX'] = curr_wi
+#         # Calculate first window threshold-level calibration of current window index set
+#         first_window_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set threshold calbration metrics').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
+#         first_window_set_thresh_calibration['WINDOW_IDX'] = curr_wi
 
-        # Append first window threshold-calibration to running list
-        first_window_calibrations_list.append(first_window_set_thresh_calibration)
+#         # Append first window threshold-calibration to running list
+#         first_window_calibrations_list.append(first_window_set_thresh_calibration)
 
-    # Iterate through before-discharge window indices
-    for curr_wi in tqdm(range(-85,0),'Calculating differential increase in performance over time'):
+#     # Iterate through before-discharge window indices
+#     for curr_wi in tqdm(range(-85,0),'Calculating differential increase in performance over time'):
         
-        # Extract current GUPI set
-        curr_wi_GUPIs = from_disch_curr_bs_rs[from_disch_curr_bs_rs.WindowIdx==curr_wi].reset_index(drop=True)
-        curr_wi_GUPIs['WindowIdx'] = 1
+#         # Extract current GUPI set
+#         curr_wi_GUPIs = from_disch_curr_bs_rs[from_disch_curr_bs_rs.WindowIdx==curr_wi].reset_index(drop=True)
+#         curr_wi_GUPIs['WindowIdx'] = 1
         
-        # Calculate first window ORC of current window index set
-        from_disch_first_window_set_ORCs = calc_test_ORC(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set ORC').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
-        from_disch_first_window_set_ORCs['WINDOW_IDX'] = curr_wi
+#         # Calculate first window ORC of current window index set
+#         from_disch_first_window_set_ORCs = calc_test_ORC(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set ORC').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
+#         from_disch_first_window_set_ORCs['WINDOW_IDX'] = curr_wi
 
-        # Calculate first window Somers' D of current window index set
-        from_disch_first_window_set_Somers_D = calc_test_Somers_D(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set Somers D').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
-        from_disch_first_window_set_Somers_D['WINDOW_IDX'] = curr_wi
+#         # Calculate first window Somers' D of current window index set
+#         from_disch_first_window_set_Somers_D = calc_test_Somers_D(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set Somers D').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
+#         from_disch_first_window_set_Somers_D['WINDOW_IDX'] = curr_wi
         
-        # Append first window ORC and Somers' D to running discrimination list
-        first_window_discrimination_list.append(from_disch_first_window_set_ORCs)
-        first_window_discrimination_list.append(from_disch_first_window_set_Somers_D)
+#         # Append first window ORC and Somers' D to running discrimination list
+#         first_window_discrimination_list.append(from_disch_first_window_set_ORCs)
+#         first_window_discrimination_list.append(from_disch_first_window_set_Somers_D)
 
-        # Calculate first window threshold-level calibration of current window index set
-        from_disch_first_window_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set threshold calbration metrics').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
-        from_disch_first_window_set_thresh_calibration['WINDOW_IDX'] = curr_wi
+#         # Calculate first window threshold-level calibration of current window index set
+#         from_disch_first_window_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df.merge(curr_wi_GUPIs[['GUPI','WindowIdx']],how='inner'),[1],False,'Calculating first window set threshold calbration metrics').rename(columns={'VALUE':'FIRST_WINDOW_VALUE'})
+#         from_disch_first_window_set_thresh_calibration['WINDOW_IDX'] = curr_wi
 
-        # Append first window threshold-calibration to running list
-        first_window_calibrations_list.append(from_disch_first_window_set_thresh_calibration)
+#         # Append first window threshold-calibration to running list
+#         first_window_calibrations_list.append(from_disch_first_window_set_thresh_calibration)
 
-    # Concatenate running lists into dataframe
-    first_window_discriminations = pd.concat(first_window_discrimination_list,ignore_index=True)
-    first_window_calibrations = pd.concat(first_window_calibrations_list,ignore_index=True)
+#     # Concatenate running lists into dataframe
+#     first_window_discriminations = pd.concat(first_window_discrimination_list,ignore_index=True)
+#     first_window_calibrations = pd.concat(first_window_calibrations_list,ignore_index=True)
 
-    # Calculate and append macro-averaged metrics for threshold-level calibration metrics
-    first_window_macro_average_thresh_calibration = first_window_calibrations.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).FIRST_WINDOW_VALUE.mean()
-    first_window_macro_average_thresh_calibration.insert(2,'THRESHOLD',['Average' for idx in range(first_window_macro_average_thresh_calibration.shape[0])])
-    first_window_calibrations = pd.concat([first_window_calibrations,first_window_macro_average_thresh_calibration],ignore_index=True).sort_values(by=['TUNE_IDX','WINDOW_IDX','THRESHOLD','METRIC']).reset_index(drop=True)
+#     # Calculate and append macro-averaged metrics for threshold-level calibration metrics
+#     first_window_macro_average_thresh_calibration = first_window_calibrations.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).FIRST_WINDOW_VALUE.mean()
+#     first_window_macro_average_thresh_calibration.insert(2,'THRESHOLD',['Average' for idx in range(first_window_macro_average_thresh_calibration.shape[0])])
+#     first_window_calibrations = pd.concat([first_window_calibrations,first_window_macro_average_thresh_calibration],ignore_index=True).sort_values(by=['TUNE_IDX','WINDOW_IDX','THRESHOLD','METRIC']).reset_index(drop=True)
 
-    # Merge first-window metrics to compiled discrimination and calibration dataframes
-    testing_set_discrimination = testing_set_discrimination.merge(first_window_discriminations,how='left')
-    testing_set_thresh_calibration = testing_set_thresh_calibration.merge(first_window_calibrations,how='left')
+#     # Merge first-window metrics to compiled discrimination and calibration dataframes
+#     testing_set_discrimination = testing_set_discrimination.merge(first_window_discriminations,how='left')
+#     testing_set_thresh_calibration = testing_set_thresh_calibration.merge(first_window_calibrations,how='left')
 
-    ## Add resampling indices to compiled dataframes and save
-    # Add resampling indices
-    testing_set_discrimination['RESAMPLE_IDX'] = curr_rs_idx
-    testing_set_thresh_calibration['RESAMPLE_IDX'] = curr_rs_idx
+#     ## Add resampling indices to compiled dataframes and save
+#     # Add resampling indices
+#     testing_set_discrimination['RESAMPLE_IDX'] = curr_rs_idx
+#     testing_set_thresh_calibration['RESAMPLE_IDX'] = curr_rs_idx
 
-    # Save compiled dataframes
-    testing_set_discrimination.to_pickle(os.path.join(test_bs_dir,'diff_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
-    testing_set_thresh_calibration.to_pickle(os.path.join(test_bs_dir,'diff_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+#     # Save compiled dataframes
+#     testing_set_discrimination.to_pickle(os.path.join(test_bs_dir,'diff_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+#     testing_set_thresh_calibration.to_pickle(os.path.join(test_bs_dir,'diff_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
 
     ## Perform cut-off analysis
     # Extract current remaining dataset
-    curr_cutoff_bs_rs = cutoff_bs_resamples[cutoff_bs_resamples.RESAMPLE_IDX==curr_rs_idx].rename(columns={'WINDOW_IDX':'WindowIdx','GUPIs':'GUPI'}).reset_index(drop=True)
+    curr_cutoff_bs_rs = cutoff_bs_resamples[(cutoff_bs_resamples.RESAMPLE_IDX==curr_rs_idx)&(cutoff_bs_resamples.WINDOW_IDX==69)].rename(columns={'WINDOW_IDX':'WindowIdx','GUPIs':'GUPI'}).reset_index(drop=True)
+    
+    # Extract current cutoff remaining and dropout sets
+    remaining_cutoff_GUPIs = curr_cutoff_bs_rs[curr_cutoff_bs_rs.SAMPLE=='Remaining'].GUPI.unique()
+    dropout_cutoff_GUPIs = curr_cutoff_bs_rs[curr_cutoff_bs_rs.SAMPLE=='Dropout'].GUPI.unique()
 
-    # Initiate empty lists to store cutoff-analysis results
-    cutoff_discrimination_list = []
-    #cutoff_calibrations_list = []
+    # Calculate remaining and dropout set ORC
+    remaining_set_ORCs = calc_test_ORC(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,85)),False,'Calculating remaining testing set ORC').rename(columns={'VALUE':'REMAINING_VALUE'})
+    dropout_set_ORCs = calc_test_ORC(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,70)),False,'Calculating dropout testing set ORC').rename(columns={'VALUE':'DROPOUT_VALUE'})
+    static_remaining_set_ORCs = calc_test_ORC(static_predictions_df[static_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,85)),False,'Calculating static remaining testing set ORC').rename(columns={'VALUE':'STATIC_REMAINING_VALUE'})
+    static_dropout_set_ORCs = calc_test_ORC(static_predictions_df[static_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,70)),False,'Calculating static dropout testing set ORC').rename(columns={'VALUE':'STATIC_DROPOUT_VALUE'})
 
-    # Iterate through cutoffs
-    for curr_wi_cutoff in tqdm(curr_cutoff_bs_rs.WindowIdx.unique(),'Calculating differential increase in performance at each cutoff'):
+    # Calculate remaining and dropout set ORC from discharge
+    from_discharge_remaining_set_ORCs = calc_test_ORC(from_discharge_test_predictions_df[from_discharge_test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(-85,0)),False,'Calculating remaining testing set ORC').rename(columns={'VALUE':'REMAINING_VALUE'})
+    from_discharge_dropout_set_ORCs = calc_test_ORC(from_discharge_test_predictions_df[from_discharge_test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(-69,0)),False,'Calculating dropout testing set ORC').rename(columns={'VALUE':'DROPOUT_VALUE'})
+    from_discharge_static_remaining_set_ORCs = calc_test_ORC(from_discharge_static_predictions_df[from_discharge_static_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(-85,0)),False,'Calculating static remaining testing set ORC').rename(columns={'VALUE':'STATIC_REMAINING_VALUE'})
+    from_discharge_static_dropout_set_ORCs = calc_test_ORC(from_discharge_static_predictions_df[from_discharge_static_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(-69,0)),False,'Calculating static dropout testing set ORC').rename(columns={'VALUE':'STATIC_DROPOUT_VALUE'})
+
+    # Calculate remaining and dropout set Somers D
+    remaining_set_Somers_D = calc_test_Somers_D(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,85)),False,'Calculating remaining testing set Somers D').rename(columns={'VALUE':'REMAINING_VALUE'})
+    dropout_set_Somers_D = calc_test_Somers_D(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,70)),False,'Calculating dropout testing set Somers D').rename(columns={'VALUE':'DROPOUT_VALUE'})
+    static_remaining_set_Somers_D = calc_test_Somers_D(static_predictions_df[static_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,85)),False,'Calculating static remaining testing set Somers D').rename(columns={'VALUE':'STATIC_REMAINING_VALUE'})
+    static_dropout_set_Somers_D = calc_test_Somers_D(static_predictions_df[static_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,70)),False,'Calculating static dropout testing set Somers D').rename(columns={'VALUE':'STATIC_DROPOUT_VALUE'})
+
+    # Calculate remaining and dropout set Somers D from discharge
+    from_discharge_remaining_set_Somers_D = calc_test_Somers_D(from_discharge_test_predictions_df[from_discharge_test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(-85,0)),False,'Calculating remaining testing set Somers D').rename(columns={'VALUE':'REMAINING_VALUE'})
+    from_discharge_dropout_set_Somers_D = calc_test_Somers_D(from_discharge_test_predictions_df[from_discharge_test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(-69,0)),False,'Calculating dropout testing set Somers D').rename(columns={'VALUE':'DROPOUT_VALUE'})
+    from_discharge_static_remaining_set_Somers_D = calc_test_Somers_D(from_discharge_static_predictions_df[from_discharge_static_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(-85,0)),False,'Calculating static remaining testing set Somers D').rename(columns={'VALUE':'STATIC_REMAINING_VALUE'})
+    from_discharge_static_dropout_set_Somers_D = calc_test_Somers_D(from_discharge_static_predictions_df[from_discharge_static_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(-69,0)),False,'Calculating static dropout testing set Somers D').rename(columns={'VALUE':'STATIC_DROPOUT_VALUE'})
+    
+    # Merge remaining and dropout dataframes
+    cutoff_ORCs = remaining_set_ORCs.merge(dropout_set_ORCs,how='left').merge(static_remaining_set_ORCs,how='left').merge(static_dropout_set_ORCs,how='left')
+    cutoff_Somers_D = remaining_set_Somers_D.merge(dropout_set_Somers_D,how='left').merge(static_remaining_set_Somers_D,how='left').merge(static_dropout_set_Somers_D,how='left')
+    from_discharge_cutoff_ORCs = from_discharge_remaining_set_ORCs.merge(from_discharge_dropout_set_ORCs,how='left').merge(from_discharge_static_remaining_set_ORCs,how='left').merge(from_discharge_static_dropout_set_ORCs,how='left')
+    from_discharge_cutoff_Somers_D = from_discharge_remaining_set_Somers_D.merge(from_discharge_dropout_set_Somers_D,how='left').merge(from_discharge_static_remaining_set_Somers_D,how='left').merge(from_discharge_static_dropout_set_Somers_D,how='left')
+
+    # Add cutoff information
+    cutoff_ORCs.insert(2,'CUTOFF_IDX',[69 for idx in range(cutoff_ORCs.shape[0])])
+    cutoff_Somers_D.insert(2,'CUTOFF_IDX',[69 for idx in range(cutoff_Somers_D.shape[0])])
+    from_discharge_cutoff_ORCs.insert(2,'CUTOFF_IDX',[69 for idx in range(from_discharge_cutoff_ORCs.shape[0])])
+    from_discharge_cutoff_Somers_D.insert(2,'CUTOFF_IDX',[69 for idx in range(from_discharge_cutoff_Somers_D.shape[0])])
+
+    # Concatenate discrimination dataframes
+    cutoff_discrimination = pd.concat([cutoff_ORCs,from_discharge_cutoff_ORCs,cutoff_Somers_D,from_discharge_cutoff_Somers_D],ignore_index=True).sort_values(by=['TUNE_IDX','METRIC','WINDOW_IDX']).reset_index(drop=True)
+
+#     # Initiate empty lists to store cutoff-analysis results
+#     cutoff_discrimination_list = []
+#     #cutoff_calibrations_list = []
+
+#     # Iterate through cutoffs
+#     for curr_wi_cutoff in tqdm(curr_cutoff_bs_rs.WindowIdx.unique(),'Calculating differential increase in performance at each cutoff'):
         
-        # Extract current cutoff remaining and dropout sets
-        remaining_cutoff_GUPIs = curr_cutoff_bs_rs[(curr_cutoff_bs_rs.WindowIdx==curr_wi_cutoff)&(curr_cutoff_bs_rs.SAMPLE=='Remaining')].GUPI.unique()
-        dropout_cutoff_GUPIs = curr_cutoff_bs_rs[(curr_cutoff_bs_rs.WindowIdx==curr_wi_cutoff)&(curr_cutoff_bs_rs.SAMPLE=='Dropout')].GUPI.unique()
+#         # Extract current cutoff remaining and dropout sets
+#         remaining_cutoff_GUPIs = curr_cutoff_bs_rs[(curr_cutoff_bs_rs.WindowIdx==curr_wi_cutoff)&(curr_cutoff_bs_rs.SAMPLE=='Remaining')].GUPI.unique()
+#         dropout_cutoff_GUPIs = curr_cutoff_bs_rs[(curr_cutoff_bs_rs.WindowIdx==curr_wi_cutoff)&(curr_cutoff_bs_rs.SAMPLE=='Dropout')].GUPI.unique()
 
-        # Calculate remaining and drouput set ORCs
-        remaining_set_ORCs = calc_test_ORC(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set ORC').rename(columns={'VALUE':'REMAINING_VALUE'})
-        dropout_set_ORCs = calc_test_ORC(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set ORC').rename(columns={'VALUE':'DROPOUT_VALUE'})
+#         # Calculate remaining and dropout set ORCs
+# #         remaining_set_ORCs = calc_test_ORC(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set ORC').rename(columns={'VALUE':'REMAINING_VALUE'})
+# #         dropout_set_ORCs = calc_test_ORC(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set ORC').rename(columns={'VALUE':'DROPOUT_VALUE'})
+#         remaining_set_ORCs = calc_test_ORC(static_predictions_df[static_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set ORC').rename(columns={'VALUE':'REMAINING_VALUE'})
+#         dropout_set_ORCs = calc_test_ORC(static_predictions_df[static_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set ORC').rename(columns={'VALUE':'DROPOUT_VALUE'})
 
-        # Calculate remaining and drouput set Somers D
-        remaining_set_Somers_D = calc_test_Somers_D(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set Somers D').rename(columns={'VALUE':'REMAINING_VALUE'})
-        dropout_set_Somers_D = calc_test_Somers_D(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set Somers D').rename(columns={'VALUE':'DROPOUT_VALUE'})
+#         # Calculate remaining and dropout set Somers D
+# #         remaining_set_Somers_D = calc_test_Somers_D(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set Somers D').rename(columns={'VALUE':'REMAINING_VALUE'})
+# #         dropout_set_Somers_D = calc_test_Somers_D(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set Somers D').rename(columns={'VALUE':'DROPOUT_VALUE'})
+#         remaining_set_Somers_D = calc_test_Somers_D(static_predictions_df[static_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set Somers D').rename(columns={'VALUE':'REMAINING_VALUE'})
+#         dropout_set_Somers_D = calc_test_Somers_D(static_predictions_df[static_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set Somers D').rename(columns={'VALUE':'DROPOUT_VALUE'})
 
-        # Calculate remaining and drouput set threshold-level calibration metrics
-        #remaining_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set threshold-level calibration metrics').rename(columns={'VALUE':'REMAINING_VALUE'})
-        #dropout_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set threshold-level calibration metrics').rename(columns={'VALUE':'DROPOUT_VALUE'})
+#         # Calculate remaining and dropout set threshold-level calibration metrics
+#         #remaining_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df[test_predictions_df.GUPI.isin(remaining_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating remaining testing set threshold-level calibration metrics').rename(columns={'VALUE':'REMAINING_VALUE'})
+#         #dropout_set_thresh_calibration = calc_test_thresh_calibration(test_predictions_df[test_predictions_df.GUPI.isin(dropout_cutoff_GUPIs)],list(range(1,curr_wi_cutoff+1)),False,'Calculating dropout testing set threshold-level calibration metrics').rename(columns={'VALUE':'DROPOUT_VALUE'})
 
-        # Merge remaining and dropout dataframes
-        cutoff_ORCs = remaining_set_ORCs.merge(dropout_set_ORCs,how='left')
-        cutoff_Somers_D = remaining_set_Somers_D.merge(dropout_set_Somers_D,how='left')
-        #cutoff_thresh_calibration = remaining_set_thresh_calibration.merge(dropout_set_thresh_calibration,how='left')
+#         # Merge remaining and dropout dataframes
+#         cutoff_ORCs = remaining_set_ORCs.merge(dropout_set_ORCs,how='left')
+#         cutoff_Somers_D = remaining_set_Somers_D.merge(dropout_set_Somers_D,how='left')
+#         #cutoff_thresh_calibration = remaining_set_thresh_calibration.merge(dropout_set_thresh_calibration,how='left')
 
-        # Add cutoff information
-        cutoff_ORCs.insert(2,'CUTOFF_IDX',[curr_wi_cutoff for idx in range(cutoff_ORCs.shape[0])])
-        cutoff_Somers_D.insert(2,'CUTOFF_IDX',[curr_wi_cutoff for idx in range(cutoff_Somers_D.shape[0])])
-        #cutoff_thresh_calibration.insert(2,'CUTOFF_IDX',[curr_wi_cutoff for idx in range(cutoff_thresh_calibration.shape[0])])
+#         # Add cutoff information
+#         cutoff_ORCs.insert(2,'CUTOFF_IDX',[curr_wi_cutoff for idx in range(cutoff_ORCs.shape[0])])
+#         cutoff_Somers_D.insert(2,'CUTOFF_IDX',[curr_wi_cutoff for idx in range(cutoff_Somers_D.shape[0])])
+#         #cutoff_thresh_calibration.insert(2,'CUTOFF_IDX',[curr_wi_cutoff for idx in range(cutoff_thresh_calibration.shape[0])])
 
-        # Append dataframes to running lists
-        cutoff_discrimination_list.append(cutoff_ORCs)
-        cutoff_discrimination_list.append(cutoff_Somers_D)
-        #cutoff_calibrations_list.append(cutoff_thresh_calibration)
+#         # Append dataframes to running lists
+#         cutoff_discrimination_list.append(cutoff_ORCs)
+#         cutoff_discrimination_list.append(cutoff_Somers_D)
+#         #cutoff_calibrations_list.append(cutoff_thresh_calibration)
 
-    # Concatenate cutoff lists
-    cutoff_discrimination = pd.concat(cutoff_discrimination_list,ignore_index=True)
-    #cutoff_calibrations = pd.concat(cutoff_calibrations_list,ignore_index=True)
+#     # Concatenate cutoff lists
+#     cutoff_discrimination = pd.concat(cutoff_discrimination_list,ignore_index=True)
+#     #cutoff_calibrations = pd.concat(cutoff_calibrations_list,ignore_index=True)
 
     # Calculate and append macro-averaged metrics for threshold-level calibration metrics
     #remaining_macro_average_thresh_calibration = cutoff_calibrations.groupby(['TUNE_IDX','WINDOW_IDX','METRIC'],as_index=False).REMAINING_VALUE.mean()
@@ -318,7 +365,7 @@ def main(array_task_id):
     #cutoff_calibrations['RESAMPLE_IDX'] = curr_rs_idx
 
     # Save compiled dataframes
-    cutoff_discrimination.to_pickle(os.path.join(test_bs_dir,'cutoff_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
+    cutoff_discrimination.to_pickle(os.path.join(test_bs_dir,'full_69_cutoff_discrimination_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
     #cutoff_calibrations.to_pickle(os.path.join(test_bs_dir,'cutoff_calibration_rs_'+str(curr_rs_idx).zfill(4)+'.pkl'))
 
 if __name__ == '__main__':

@@ -431,31 +431,37 @@ STUDY_WINDOWS.to_csv('/home/sb2406/rds/hpc-work/timestamps/window_timestamps.csv
 
 ### V. Perform summary characteristic POLR analysis
 ## Load CENTER-TBI information
+# Load formatted study timestamps
+CENTER_TBI_ICU_datetime = pd.read_csv('/home/sb2406/rds/hpc-work/timestamps/ICU_adm_disch_timestamps.csv')
+
 # Load CENTER-TBI dataset to access summary characteristics
 summary_characteristics = pd.read_csv('/home/sb2406/rds/hpc-work/CENTER-TBI/DemoInjHospMedHx/data.csv',na_values = ["NA","NaN"," ", ""])
+IMPACT_characteristics = pd.read_csv('/home/sb2406/rds/hpc-work/CENTER-TBI/IMPACT/data.csv',na_values = ["NA","NaN"," ", ""]).rename(columns={'entity_id':'GUPI'})[['GUPI','marshall','tsah','EDH']]
 summary_characteristics = summary_characteristics[summary_characteristics.GUPI.isin(CENTER_TBI_ICU_datetime.GUPI.unique())].reset_index(drop=True)
-summary_characteristics = summary_characteristics[['GUPI','Age','Sex','Race','GCSScoreBaselineDerived','GOSE6monthEndpointDerived']]
+IMPACT_characteristics = IMPACT_characteristics[IMPACT_characteristics.GUPI.isin(CENTER_TBI_ICU_datetime.GUPI.unique())].reset_index(drop=True)
+summary_characteristics = summary_characteristics[['GUPI','Age','Sex','GCSScoreBaselineDerived','EmplmtStatus','GOSE6monthEndpointDerived']].merge(IMPACT_characteristics,how='left')
 summary_characteristics = summary_characteristics.merge(CENTER_TBI_ICU_datetime[['GUPI','ICUDurationHours']],how='left')
 summary_characteristics['Severity'] = pd.cut(summary_characteristics['GCSScoreBaselineDerived'],bins=[2,8,12,15],labels=['Severe','Moderate','Mild'],ordered=False)
-summary_characteristics['Race'][summary_characteristics['Race'] == 'Unknown'] = np.nan
-summary_characteristics['Race'][summary_characteristics['Race'] == 'NotAllowed'] = np.nan
+summary_characteristics['marshall'] = pd.cut(summary_characteristics['marshall'],bins=[0,1,2,3,4,6],labels=['I','II','III','IV','V_or_VI'],ordered=False)
+summary_characteristics['Retired'] = (summary_characteristics.EmplmtStatus==8).astype(float)
+summary_characteristics.Retired[summary_characteristics.EmplmtStatus.isna()] = np.nan
 
 # Convert GOSE to ordered category type
 summary_characteristics['GOSE6monthEndpointDerived'] = summary_characteristics['GOSE6monthEndpointDerived'].astype(CategoricalDtype(categories=['1', '2_or_3', '4', '5', '6', '7', '8'],ordered=True))
 
 # Remove redundant columns and rename GOSE column
-summary_characteristics = summary_characteristics.drop(columns='GCSScoreBaselineDerived').rename(columns={'GOSE6monthEndpointDerived':'GOSE'})
+summary_characteristics = summary_characteristics.drop(columns=['GCSScoreBaselineDerived','EmplmtStatus']).rename(columns={'GOSE6monthEndpointDerived':'GOSE'})
 
 # Remove rows with missing values
 summary_characteristics = summary_characteristics.dropna().reset_index(drop=True)
 
 # Convert categorical characteristics to proper type
-cat_encoder = OneHotEncoder(drop = 'first',categories=[['M','F'],['White','Black','Asian'],['Mild','Moderate','Severe']])
-cat_column_names = ['Female','Race_Black','Race_Asian','Severity_Moderate','Severity_Severe']
+cat_encoder = OneHotEncoder(drop = 'first',categories=[['M','F'],['I','II','III','IV','V_or_VI'],['Mild','Moderate','Severe']])
+cat_column_names = ['Female','Marshall_II','Marshall_III','Marshall_IV','Marshall_V_or_VI','Severity_Moderate','Severity_Severe']
 
-summary_categorical = pd.DataFrame(cat_encoder.fit_transform(summary_characteristics[['Sex','Race','Severity']]).toarray(),
+summary_categorical = pd.DataFrame(cat_encoder.fit_transform(summary_characteristics[['Sex','marshall','Severity']]).toarray(),
                                    columns=cat_column_names)
-summary_characteristics = pd.concat([summary_characteristics.drop(columns=['Sex','Race','Severity']),summary_categorical],axis=1)
+summary_characteristics = pd.concat([summary_characteristics.drop(columns=['Sex','marshall','Severity']),summary_categorical],axis=1)
 
 summary_POLR = OrderedModel(summary_characteristics['GOSE'],
                             summary_characteristics[summary_characteristics.columns[~summary_characteristics.columns.isin(['GUPI','GOSE'])]],

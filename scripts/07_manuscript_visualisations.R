@@ -145,8 +145,8 @@ before.disch.calib.slope <- rbind(calibration.CIs,baseline.calibration.CIs) %>%
 
 # Create directory for current date and save post-admission and pre-discharge calibration slope plots
 dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'since_adm_calib_slope.svg'),since.adm.calib.slope,device=svglite,units='in',dpi=600,width=3.7,height=1.38)
-ggsave(file.path('../plots',Sys.Date(),'before_disch_calib_slope.svg'),before.disch.calib.slope,device=svglite,units='in',dpi=600,width=3.7,height=1.38)
+ggsave(file.path('../plots',Sys.Date(),'since_adm_calib_slope.svg'),since.adm.calib.slope,device=svglite,units='in',dpi=600,width=3.7,height=1.1)
+ggsave(file.path('../plots',Sys.Date(),'before_disch_calib_slope.svg'),before.disch.calib.slope,device=svglite,units='in',dpi=600,width=3.7,height=1.1)
 
 ## Create threshold-level calibration curve plot
 # Since admission calibration curve plot
@@ -381,7 +381,7 @@ cutoff.mean.analysis <- read.csv('../model_performance/v6-0/sensitivity_cutoff_m
   mutate(CutoffDays = CUTOFF_IDX/12)
 
 # Load and prepare cutoff discrimination difference dataframe
-cutoff.discrimination <- read.csv('../model_performance/v6-0/sensitivity_cutoff_discrimination_CI.csv',
+cutoff.discrimination <- read.csv('../model_performance/v6-0/full_69_sensitivity_cutoff_discrimination_CI.csv',
                                   na.strings = c("NA","NaN","", " ")) %>%
   mutate(VERSION = 6,
          SinceAdmission = WINDOW_IDX > 0)
@@ -397,6 +397,7 @@ cutoff.mean.somers.diff.plot <- cutoff.mean.analysis %>%
   coord_cartesian(xlim=c(0,7), ylim = c(-15,19)) +
   scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
   geom_vline(xintercept = 13/12, color='dark gray',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_vline(xintercept = 69/12, color='#bc5090',alpha = 1, size=1.3/.pt, linetype = "dashed")+
   geom_hline(yintercept = 0, color='#ffa600',alpha = 1, size=2/.pt) +
   geom_line(aes(x=CutoffDays,y=100*median),alpha = 1, size=1.3/.pt,color="#003f5c")+
   geom_ribbon(aes(x=CutoffDays,ymin=lo*100,ymax=hi*100),alpha=.2,fill="#003f5c") +
@@ -414,32 +415,67 @@ cutoff.mean.somers.diff.plot <- cutoff.mean.analysis %>%
 
 # Create directory for current date and save trajectory of mean difference in Somers' D vs. discharge cutoff
 dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'cutoff_diff_Somers_plot.svg'),cutoff.mean.somers.diff.plot,device= svglite,units='in',dpi=600,width=3.7,height = 1.53)
+ggsave(file.path('../plots',Sys.Date(),'cutoff_diff_Somers_plot.svg'),cutoff.mean.somers.diff.plot,device= svglite,units='in',dpi=600,width=3.7,height = 1.29)
 
-
-
-
-cutoff.discrimination %>%
-  filter(CUTOFF_IDX == 73,
-         variable != 'CUTOFF_DIFFERENCE',
-         METRIC == 'Somers D') %>%
+# Somers D pre- and post-discharge cutoff from admission
+cutoff.somers.plot <- cutoff.discrimination %>%
+  filter(SinceAdmission,
+         CUTOFF_IDX == 69,
+         variable %in% c('DROPOUT_VALUE','REMAINING_VALUE'),
+         METRIC == 'Somers D',
+         ((WINDOW_IDX<65)|(variable=='REMAINING_VALUE'))) %>%
   ggplot() +
-  #coord_cartesian(xlim=c(0,7), ylim = c(0,10)) +
+  coord_cartesian(xlim=c(0,7), ylim = c(39,86)) +
   scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.0, .0)))+
+  geom_vline(xintercept = 69/12, color='#bc5090',alpha = 1, size=1.3/.pt, linetype = "dashed")+
   geom_line(aes(x=DaysAfterICUAdmission,y=100*median,color=variable),alpha = 1, size=1.3/.pt)+
   geom_ribbon(aes(x=DaysAfterICUAdmission,ymin=lo*100,ymax=hi*100,fill=variable),alpha=.2) +
   ylab('Explanation of ordinal GOSE (%)')+
   xlab('Days since ICU admission')+
+  scale_fill_manual(values = c("#003f5c", "#bc5090"))+
+  scale_color_manual(values = c("#003f5c", "#bc5090"))+
   theme_minimal(base_family = 'Roboto Condensed') +
   theme(
     panel.grid.minor.x = element_blank(),
     axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
     axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
     axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold')
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
   )
 
+# Somers D pre- and post-discharge cutoff before discharge
+before.disch.cutoff.somers.plot <- cutoff.discrimination %>%
+  filter(!SinceAdmission,
+         CUTOFF_IDX == 69,
+         variable %in% c('DROPOUT_VALUE','REMAINING_VALUE'),
+         METRIC == 'Somers D',
+         ((WINDOW_IDX>-64)|(variable=='REMAINING_VALUE'))) %>%
+  mutate(DaysBeforeICUDischarge = abs(DaysAfterICUAdmission)) %>%
+  ggplot() +
+  scale_x_reverse(expand = expansion(mult = c(.0, .0)),breaks=seq(0,7,by=1))+
+  coord_cartesian(xlim=c(7,0), ylim = c(39,86)) +
+  geom_vline(xintercept = 68/12, color='#bc5090',alpha = 1, size=1.3/.pt, linetype = "dashed")+
+  geom_line(aes(x=DaysBeforeICUDischarge,y=100*median,color=variable),alpha = 1, size=1.3/.pt)+
+  geom_ribbon(aes(x=DaysBeforeICUDischarge,ymin=lo*100,ymax=hi*100,fill=variable),alpha=.2) +
+  ylab('Explanation of ordinal GOSE (%)')+
+  xlab('Days before ICU discharge')+
+  scale_fill_manual(values = c("#003f5c", "#bc5090"))+
+  scale_color_manual(values = c("#003f5c", "#bc5090"))+
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    legend.position = 'none'
+  )
 
+# Create directory for current date and save trajectory of mean difference in Somers' D vs. discharge cutoff
+dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
+ggsave(file.path('../plots',Sys.Date(),'cutoff_since_adm_somers_plot.svg'),cutoff.somers.plot,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
+ggsave(file.path('../plots',Sys.Date(),'cutoff_before_disch_somers_plot.svg'),before.disch.cutoff.somers.plot,device= svglite,units='in',dpi=600,width=3.7,height = 1.38)
 
 ## Create bi-directional distribution plot of significant transitions
 # Load dataframe of significant transitions
@@ -1934,78 +1970,109 @@ cutoff.table <- sig.transitions.df %>%
 ## Prepare dataframe
 # Load dataframe of characteristics over time
 char.over.time <- read.csv('../CENTER-TBI/characteristics_over_time.csv',
-                           na.strings = c("NA","NaN","", " "))
-
-# Focus on first 7 days
-char.over.time <- char.over.time %>%
+                           na.strings = c("NA","NaN","", " ")) %>%
   mutate(DaysAfterICUAdmission = WindowIdx/12)
 
-
-char.over.time %>%
-  filter(DaysAfterICUAdmission<=7,
-         Characteristic=='GOSE')%>%
-  ggplot(aes(x=DaysAfterICUAdmission,y=Count,fill=forcats::fct_rev(as.factor(Value)))) +
-  geom_bar(stat = "identity",
-           position = "fill")
-
-
-char.over.time %>%
-  filter(DaysAfterICUAdmission<=7,
-         Characteristic=='Severity')%>%
-  ggplot(aes(x=DaysAfterICUAdmission,y=Count,fill=factor(Value))) +
-  geom_bar(stat = "identity",
-           position = "fill")
-
-char.over.time %>%
-  filter(DaysAfterICUAdmission<=7,
-         Characteristic=='Intensity')%>%
-  ggplot(aes(x=DaysAfterICUAdmission,y=Count,fill=factor(Value))) +
-  geom_bar(stat = "identity",
-           position = "fill")
-
-geom_ribbon(aes(ymin=0,ymax=PropRemaining,fill='All patients'),alpha=.2) +
-  geom_line(aes(y=PropRemaining),alpha = 1, size=1.3/.pt,color='#ffa600')+
-  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.00, .01)))+
+## Proportion of GOSE over time
+gose.bar.plot <- char.over.time %>%
+  filter(Characteristic=='GOSE',
+         DaysAfterICUAdmission<=7) %>%
+  mutate(Value = plyr::mapvalues(Value,
+                                 from=c('2_or_3'),
+                                 to=c('2 or 3')),
+         Percentage = 100*Proportion) %>%
+  ggplot(aes(x=DaysAfterICUAdmission,y=Percentage,fill=forcats::fct_rev(as.factor(Value)))) +
+  geom_col() +
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.00, .00)))+
   scale_y_continuous(expand = expansion(mult = c(.00, .00)))+
-  coord_cartesian(xlim=c(0,7),ylim = c(0,100)) +
-  ylab('Proportion remaining (%)')+
-  xlab('Days since ICU admission')+
-  scale_fill_manual(name = 'Variable type',values=c("All patients" = "#ffa600"))+
+  coord_cartesian(xlim=c(0,7.04),ylim = c(0,100)) +
+  scale_fill_manual(values=c('#003f5c','#576b91','#9f9bc4','#eacef5','#eaa1d2','#ea729e','#de425b'),
+                    limits = c("1","2 or 3","4","5","6","7","8"))+
+  ylab('Percentage') +
+  xlab('Days since ICU admission') +
+  guides(fill=guide_legend(title="GOSE",nrow = 1)) +
   theme_minimal(base_family = 'Roboto Condensed') +
   theme(
     strip.text = element_blank(),
     panel.grid.minor = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
+    panel.grid.major = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(0,0,0,0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(0,0,0,0)),
     axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold',margin = margin(0,0,0,0)),
     legend.position = 'bottom',
     legend.title = element_text(size = 7, color = "black", face = 'bold'),
     legend.text=element_text(size=6),
-    legend.key.size = unit(1.3/.pt,"line")
+    legend.key.size = unit(1.3/.pt,"line"),
+    aspect.ratio = 1
   )
 
+## Proportion of GCS severity over time
+gcs.severity.bar.plot <- char.over.time %>%
+  filter(Characteristic=='Severity',
+         DaysAfterICUAdmission<=7) %>%
+  mutate(Percentage = 100*Proportion,
+         Value = factor(Value,levels = c('Mild','Moderate','Severe'))) %>%
+  ggplot(aes(x=DaysAfterICUAdmission,y=Percentage,fill=forcats::fct_rev(as.factor(Value)))) +
+  geom_col() +
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.00, .00)))+
+  scale_y_continuous(expand = expansion(mult = c(.00, .00)))+
+  coord_cartesian(xlim=c(0,7.04),ylim = c(0,100)) +
+  scale_fill_manual(values=c('#003f5c','#eacef5','#de425b'),
+                    limits = c("Mild","Moderate","Severe"))+
+  ylab('Percentage') +
+  xlab('Days since ICU admission') +
+  guides(fill=guide_legend(title="GCS severity",nrow = 1)) +
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    strip.text = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(0,0,0,0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(0,0,0,0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold',margin = margin(0,0,0,0)),
+    legend.position = 'bottom',
+    legend.title = element_text(size = 7, color = "black", face = 'bold'),
+    legend.text=element_text(size=6),
+    legend.key.size = unit(1.3/.pt,"line"),
+    aspect.ratio = 1
+  )
 
+## Proportion of TIL over time
+til.bar.plot <- char.over.time %>%
+  filter(Characteristic=='Intensity',
+         DaysAfterICUAdmission<=7) %>%
+  mutate(Percentage = 100*Proportion,
+         Value = factor(Value,levels = c('None','Basic','Mild','Moderate','Extreme'))) %>%
+  ggplot(aes(x=DaysAfterICUAdmission,y=Percentage,fill=forcats::fct_rev(as.factor(Value)))) +
+  geom_col() +
+  scale_x_continuous(breaks=seq(0,7,by=1),expand = expansion(mult = c(.00, .00)))+
+  scale_y_continuous(expand = expansion(mult = c(.00, .00)))+
+  coord_cartesian(xlim=c(0,7.04),ylim = c(0,100)) +
+  scale_fill_manual(values=c('#003f5c','#7b83ab','#eacef5','#eb8aba','#de425b'),
+                    limits = c('None','Basic','Mild','Moderate','Extreme'))+
+  ylab('Percentage') +
+  xlab('Days since ICU admission') +
+  guides(fill=guide_legend(title="TIL",nrow = 1)) +
+  theme_minimal(base_family = 'Roboto Condensed') +
+  theme(
+    strip.text = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    axis.text.x = element_text(size = 6, color = "black",margin = margin(0,0,0,0)),
+    axis.text.y = element_text(size = 6, color = "black",margin = margin(0,0,0,0)),
+    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
+    axis.title.y = element_text(size = 7, color = "black",face = 'bold',margin = margin(0,0,0,0)),
+    legend.position = 'bottom',
+    legend.title = element_text(size = 7, color = "black", face = 'bold'),
+    legend.text=element_text(size=6),
+    legend.key.size = unit(1.3/.pt,"line"),
+    aspect.ratio = 1
+  )
 
-barPlots <- ggplot(impact.dataframe.long.cat, aes(x = GOSE, y = count, fill = forcats::fct_rev(as.factor(value)))) +
-  geom_bar(stat = "identity",
-           position = "fill") +
-  scale_fill_brewer(palette = "Set2") + 
-  facet_wrap(~name, 
-             scales = "free_y",
-             strip.position = "left",
-             labeller = as_labeller(c(GCSm = "Pr(GCSm)",marshall = "Pr(Marshall CT)", unreactive_pupils = "Pr(Unreactive Pupils)") )) +
-  ylab('Proportion') +
-  xlab('GOSE at 6 months post-injury') +
-  theme_classic() +
-  theme(strip.text = element_text(size=20), 
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 16, color = "black"),
-        axis.text.y = element_text(size = 16, color = "black"),
-        axis.title.x = element_text(size = 20),
-        axis.title.y = element_blank(), 
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        strip.background = element_blank(),
-        strip.placement = "outside",
-        legend.position = "none",
-        aspect.ratio = 1)
+## Create directory for current date and save proportion bar plots
+dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_bar_plot.png'),gose.bar.plot,units='in',dpi=600,width=2.5,height = 2.8)
+ggsave(file.path('../plots',Sys.Date(),'GCS_bar_plot.png'),gcs.severity.bar.plot,units='in',dpi=600,width=2.5,height = 2.8)
+ggsave(file.path('../plots',Sys.Date(),'TIL_bar_plot.png'),til.bar.plot,units='in',dpi=600,width=2.5,height = 2.8)

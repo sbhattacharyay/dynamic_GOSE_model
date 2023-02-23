@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/453184440.svg)](https://zenodo.org/badge/latestdoi/453184440)
 # Ordinal, full-context prognosis-based trajectories of traumatic brain injury patients in European ICUs
 Contribution of clinical course to outcome after traumatic brain injury: mining patient trajectories from European intensive care unit data
 

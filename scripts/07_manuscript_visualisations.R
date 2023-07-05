@@ -22,6 +22,8 @@
 # XV. Create table of cutoffs defining significant transitions
 # XVI. Stacked proportion barplots of characteristics over time
 # XVII. Sensitivity analysis difference plots
+# XVIII. Kaplan-Meier ICU stay curve for patients who died vs. survived in ICU
+# XIX. Supplementary Figure: WLST vs. non-WLST TimeSHAP
 
 ### I. Initialisation
 # Import necessary libraries
@@ -35,6 +37,8 @@ library(svglite)
 library(openxlsx)
 library(gridExtra)
 library(extrafont)
+library(survminer)
+library(survival)
 
 # Import custom plotting functions
 source('functions/plotting.R')
@@ -708,7 +712,7 @@ ggsave(file.path('../plots',Sys.Date(),'event_timeshap.svg'),event.timeshap.viol
 # Load filtered test set predictions
 plotting.test.preds <- read.csv('../model_outputs/v6-0/plotting_test_predictions.csv',
                                 na.strings = c("NA","NaN","", " ")) %>%
-  select(WindowIdx,REPEAT,FOLD,Pr.GOSE.1.,Pr.GOSE.3.,Pr.GOSE.4.,Pr.GOSE.5.,Pr.GOSE.6.,Pr.GOSE.7.) %>%
+  select(GUPI,WindowIdx,REPEAT,FOLD,Pr.GOSE.1.,Pr.GOSE.3.,Pr.GOSE.4.,Pr.GOSE.5.,Pr.GOSE.6.,Pr.GOSE.7.) %>%
   pivot_longer(cols=c(Pr.GOSE.1.,Pr.GOSE.3.,Pr.GOSE.4.,Pr.GOSE.5.,Pr.GOSE.6.,Pr.GOSE.7.),
                names_to = "Threshold",
                values_to = "Probability") %>%
@@ -718,176 +722,129 @@ plotting.test.preds <- read.csv('../model_outputs/v6-0/plotting_test_predictions
 
 # Calculate mean and variance of prediction values
 summ.plotting.test.preds <- plotting.test.preds %>%
-  group_by(WindowIdx,Threshold) %>%
+  group_by(GUPI,WindowIdx,Threshold) %>%
   summarise(meanProb = 100*mean(Probability),
             stdProb = 100*sd(Probability)) %>%
+  mutate(stdProb = replace_na(stdProb,5)) %>%
   rowwise() %>%
   mutate(hiProb = min(meanProb+stdProb,100),
          loProb = max(meanProb-stdProb,0),
          DaysAfterICUAdmission = WindowIdx/12)
 
-# Create line plots for individual patient trajectory
-indiv.pt.trajectory <- summ.plotting.test.preds %>%
-  ggplot() +
-  coord_cartesian(ylim = c(0,100)) +
-  scale_x_continuous(breaks=seq(0,9,by=1),expand = expansion(mult = c(.01, .01)))+
-  scale_fill_manual(values=c('#003f5c','#444e86','#955196','#dd5182','#ff6e54','#ffa600'))+
-  scale_color_manual(values=c('#003f5c','#444e86','#955196','#dd5182','#ff6e54','#ffa600'))+
-  geom_hline(yintercept = 50, color='dark gray',alpha = 1, size=1.3/.pt, linetype = "dashed")+
-  geom_vline(xintercept = max(summ.plotting.test.preds$DaysAfterICUAdmission),
-             color='orange', 
-             alpha = 1,
-             size=1.3/.pt,
-             linetype = "twodash")+
-  geom_line(aes(x=DaysAfterICUAdmission,y=meanProb,color=Threshold),alpha = 1, size=1.3/.pt)+
-  geom_ribbon(aes(x=DaysAfterICUAdmission,ymin=loProb,ymax=hiProb,fill=Threshold),alpha=.2) +
-  annotate('rect',xmin=(1/12),xmax=(3/12),ymin=0,ymax=100,alpha=0.3,fill='#de425b') +
+# Create line plots for individual patient trajectories at each GOSE
+GOSE.1.plot <- indiv.pt.trajectory.plot(summ.plotting.test.preds,'5sMQ758',.1,'left') +
+  annotate('rect',xmin=(32/12),xmax=(36/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31')
+
+GOSE.2.3.plot <- indiv.pt.trajectory.plot(summ.plotting.test.preds,'9isg322',.1,'right') +
   annotate('rect',xmin=(3/12),xmax=(5/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
   annotate('rect',xmin=(40/12),xmax=(46/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
   annotate('rect',xmin=(76/12),xmax=(78/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
-  annotate('rect',xmin=(88/12),xmax=(90/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
-  ylab('Probability (%)')+
-  xlab('Days since ICU admission')+
-  guides(fill=guide_legend(byrow=TRUE),
-         color=guide_legend(byrow=TRUE))+
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    panel.grid.minor.x = element_blank(),
-    axis.text.x = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.text.y = element_text(size = 6, color = "black",margin = margin(r = 0)),
-    axis.title.x = element_text(size = 7, color = "black",face = 'bold'),
-    axis.title.y = element_text(size = 7, color = "black",face = 'bold'),
-    legend.position = 'bottom',
-    legend.key.size = unit(1.3/.pt,'line'),
-    legend.title = element_text(size = 7, color = 'black',face = 'bold'),
-    legend.text=element_text(size=6)
-  )
+  annotate('rect',xmin=(88/12),xmax=(90/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31')
+
+GOSE.4.plot <- indiv.pt.trajectory.plot(summ.plotting.test.preds,'7YeE448',.05,'right') +
+  annotate('rect',xmin=(23/12),xmax=(26/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
+  annotate('rect',xmin=(48/12),xmax=(52/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
+  annotate('rect',xmin=(59/12),xmax=(62/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') 
+
+GOSE.5.plot <- indiv.pt.trajectory.plot(summ.plotting.test.preds,'2DLL573',.7,'right') +
+  annotate('rect',xmin=(20/12),xmax=(24/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
+  annotate('rect',xmin=(68/12),xmax=(71/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
+  annotate('rect',xmin=(92/12),xmax=(96/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31')
+
+GOSE.6.plot <- indiv.pt.trajectory.plot(summ.plotting.test.preds,'6xrH956',0,'right') +
+  annotate('rect',xmin=(8/12),xmax=(12/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
+  annotate('rect',xmin=(44/12),xmax=(49/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31')
+
+GOSE.7.plot <- indiv.pt.trajectory.plot(summ.plotting.test.preds,'5HZz257',.25,'left') +
+  annotate('rect',xmin=(23/12),xmax=(27/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31')
+
+GOSE.8.plot <- indiv.pt.trajectory.plot(summ.plotting.test.preds,'2BWg753',.1,'left') +
+  annotate('rect',xmin=(3/12),xmax=(7/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
+  annotate('rect',xmin=(42/12),xmax=(46/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31') +
+  annotate('rect',xmin=(30/12),xmax=(35/12),ymin=0,ymax=100,alpha=0.3,fill='#488f31')
 
 # Create directory for current date and save individual patient trajectory
 dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'indiv_trajectory.svg'),indiv.pt.trajectory,device= svglite,units='in',dpi=600,width=7.5,height = 2.3)
+ggsave(file.path('../plots',Sys.Date(),'indiv_trajectory.svg'),GOSE.2.3.plot,device= svglite,units='in',dpi=600,width=7.5,height = 2.3)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_1_plot.png'),GOSE.1.plot,units='in',dpi=600,width=7.5,height = 2.3)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_4_plot.png'),GOSE.4.plot,units='in',dpi=600,width=7.5,height = 2.3)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_5_plot.png'),GOSE.5.plot,units='in',dpi=600,width=7.5,height = 2.3)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_6_plot.png'),GOSE.6.plot,units='in',dpi=600,width=7.5,height = 2.3)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_7_plot.png'),GOSE.7.plot,units='in',dpi=600,width=7.5,height = 2.3)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_8_plot.png'),GOSE.8.plot,units='in',dpi=600,width=7.5,height = 2.3)
 
 ## Create individual SHAP plots
 # Load individual feature-level SHAP values
 indiv.timeSHAP.df <- read.csv('../model_interpretations/v6-0/timeSHAP/individual_plotting_timeSHAP_values.csv',
-                              na.strings = c("NA","NaN","", " "))
-
-# Save Excel dataframe of tokens for manual labelling
-indiv.timeSHAP.var.df <- indiv.timeSHAP.df %>%
-  select(Baseline,RankIdx,Token) %>%
-  mutate(PLOT_LABEL='')
-write.xlsx(indiv.timeSHAP.var.df,'../model_interpretations/v6-0/timeSHAP/individual_timeSHAP_labels.xlsx') 
-
-# Load manually created labels of unique `Tokens` in plotting datafame
-indiv.timeSHAP.var.df <- read_xlsx('../model_interpretations/v6-0/timeSHAP/individual_timeSHAP_labels_filled.xlsx')
-
-# Merge manually created labels to filtered TimeSHAP plotting dataframe
-indiv.timeSHAP.df <- indiv.timeSHAP.df %>%
-  left_join(indiv.timeSHAP.var.df)
-
-# Complete formatting dataframe prior to plotting
-indiv.timeSHAP.df <- indiv.timeSHAP.df %>%
+                              na.strings = c("NA","NaN","", " ")) %>%
   mutate(Baseline = recode(as.character(Baseline),'True'='Static','False'='Dynamic')) %>%
-  mutate(Baseline = fct_relevel(Baseline, 'Static', 'Dynamic')) %>%
-  mutate(PLOT_LABEL = fct_reorder(PLOT_LABEL, -RankIdx))
+  mutate(Baseline = fct_relevel(Baseline, 'Static', 'Dynamic'))
 indiv.timeSHAP.df$SHAP[(indiv.timeSHAP.df$Token=='Others')&(indiv.timeSHAP.df$Baseline=='Static')] = indiv.timeSHAP.df$SHAP[(indiv.timeSHAP.df$Token=='Others')&(indiv.timeSHAP.df$Baseline=='Static')]/253
 indiv.timeSHAP.df$SHAP[(indiv.timeSHAP.df$Token=='Others')&(indiv.timeSHAP.df$Baseline=='Dynamic')] = indiv.timeSHAP.df$SHAP[(indiv.timeSHAP.df$Token=='Others')&(indiv.timeSHAP.df$Baseline=='Dynamic')]/138
 
-# Create local feature importance bar plot for static predictors
-indiv.static.timeshap.plot <- indiv.timeSHAP.df %>%
-  filter(Baseline=='Static') %>%
-  ggplot() +
-  geom_vline(xintercept = 0, color = "darkgray") +
-  geom_col(aes(y=PLOT_LABEL,x=SHAP),width=.6,fill='#003f5c') + 
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    strip.background = element_blank(),
-    strip.text = element_blank(),
-    axis.title.y = element_blank(),
-    axis.text.x = element_text(size = 5, color = 'black'),
-    axis.text.y = element_text(size = 6, color = 'black',angle = 30, hjust=1),
-    # axis.text.y = element_blank(),
-    axis.title.x = element_blank(),
-    panel.border = element_blank(),
-    axis.line.x = element_line(size=1/.pt),
-    axis.text = element_text(color='black'),
-    # legend.position = 'bottom',
-    legend.position = 'none',
-    panel.grid.major.y = element_blank(),
-    panel.spacing = unit(10, 'points'),
-    #legend.key.size = unit(1.3/.pt,'line'),
-    # legend.title = element_text(size = 7, color = 'black',face = 'bold'),
-    # legend.text=element_text(size=6),
-    plot.margin=grid::unit(c(0,0,0,0), "mm")
-  )
+# Create barplots
+GOSE.1.static.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'5sMQ758','Static')
+GOSE.2.3.static.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'9isg322','Static',T)
+GOSE.4.static.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'7YeE448','Static')
+GOSE.5.static.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'2DLL573','Static')
+GOSE.6.static.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'6xrH956','Static')
+GOSE.7.static.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'5HZz257','Static')
+GOSE.8.static.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'2BWg753','Static')
 
-# Create local feature importance bar plot for dynamic predictors
-indiv.dynamic.timeshap.plot <- indiv.timeSHAP.df %>%
-  filter(Baseline=='Dynamic') %>%
-  ggplot() +
-  geom_vline(xintercept = 0, color = "darkgray") +
-  geom_col(aes(y=PLOT_LABEL,x=SHAP),width=.6,fill='#003f5c') + 
-  theme_minimal(base_family = 'Roboto Condensed') +
-  theme(
-    strip.background = element_blank(),
-    strip.text = element_blank(),
-    axis.title.y = element_blank(),
-    axis.text.x = element_text(size = 5, color = 'black'),
-    axis.text.y = element_text(size = 6, color = 'black',angle = 30, hjust=1),
-    # axis.text.y = element_blank(),
-    axis.title.x = element_blank(),
-    panel.border = element_blank(),
-    axis.line.x = element_line(size=1/.pt),
-    axis.text = element_text(color='black'),
-    # legend.position = 'bottom',
-    legend.position = 'none',
-    panel.grid.major.y = element_blank(),
-    panel.spacing = unit(10, 'points'),
-    #legend.key.size = unit(1.3/.pt,'line'),
-    # legend.title = element_text(size = 7, color = 'black',face = 'bold'),
-    # legend.text=element_text(size=6),
-    plot.margin=grid::unit(c(0,0,0,0), "mm")
-  )
+GOSE.1.dynamic.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'5sMQ758','Dynamic')
+GOSE.2.3.dynamic.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'9isg322','Dynamic',T)
+GOSE.4.dynamic.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'7YeE448','Dynamic')
+GOSE.5.dynamic.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'2DLL573','Dynamic')
+GOSE.6.dynamic.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'6xrH956','Dynamic')
+GOSE.7.dynamic.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'5HZz257','Dynamic')
+GOSE.8.dynamic.plot <- indiv.pt.feature.barplot(indiv.timeSHAP.df,'2BWg753','Dynamic')
 
 # Create directory for current date and save individual feature-level bar plots
 dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'indiv_static_barplots.svg'),indiv.static.timeshap.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
-ggsave(file.path('../plots',Sys.Date(),'indiv_dynamic_barplots.svg'),indiv.dynamic.timeshap.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'indiv_static_barplots.svg'),GOSE.2.3.static.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_1_static_shap.svg'),GOSE.1.static.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_4_static_shap.svg'),GOSE.4.static.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_5_static_shap.svg'),GOSE.5.static.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_6_static_shap.svg'),GOSE.6.static.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_7_static_shap.svg'),GOSE.7.static.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_8_static_shap.svg'),GOSE.8.static.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+
+ggsave(file.path('../plots',Sys.Date(),'indiv_dynamic_barplots.svg'),GOSE.2.3.dynamic.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_1_dynamic_shap.svg'),GOSE.1.dynamic.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_4_dynamic_shap.svg'),GOSE.4.dynamic.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_5_dynamic_shap.svg'),GOSE.5.dynamic.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_6_dynamic_shap.svg'),GOSE.6.dynamic.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_7_dynamic_shap.svg'),GOSE.7.dynamic.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_8_dynamic_shap.svg'),GOSE.8.dynamic.plot,device= svglite,units='in',dpi=600,width=2.34,height = 1.72)
 
 ## Create individual eventSHAP heatmaps
 # Load individual event-level SHAP values
 indiv.event.timeSHAP.df <- read.csv('../model_interpretations/v6-0/timeSHAP/individual_plotting_event_timeSHAP_values.csv',
                                     na.strings = c("NA","NaN","", " ")) %>%
   mutate(HoursBeforeTransition = plyr::mapvalues(TimePreTransition,
-                                                 from=c('-1','-2','-3','Pruned Events'),
-                                                 to=c('0–2','2–4','4–6','Previous windows'))) %>%
-  mutate(HoursBeforeTransition = factor(HoursBeforeTransition,levels=c('Previous windows','4–6','2–4','0–2')),
+                                                 from=c('-1','-2','-3','-4','-5','-6','-7','Pruned Events'),
+                                                 to=c('0–2','2–4','4–6','6–8','8–10','10–12','12–14','Previous windows'))) %>%
+  mutate(HoursBeforeTransition = factor(HoursBeforeTransition,levels=c('Previous windows','12–14','10–12','8–10','6–8','4–6','2–4','0–2')),
          SHAPLabel = sprintf('%.2f',SHAP))
 
 # Create local event importance heat plot
-indiv.event.timeshap.plot <- indiv.event.timeSHAP.df %>%
-  mutate(x=0) %>%
-  ggplot(aes(x=x)) +
-  geom_tile(aes(y=HoursBeforeTransition,fill=SHAP)) + 
-  geom_text(aes(y=HoursBeforeTransition,
-                label=SHAPLabel,
-                color = as.factor(as.integer(abs(SHAP)>.35))),family = 'Roboto Condensed',size=7/.pt) +
-  scale_fill_gradient2(na.value='black',low='#003f5c',mid='#eacaf4',high='#de425b',midpoint=0,limits = c(-.7,.7),breaks=seq(-0.6,0.6,by=.15)) +
-  scale_color_manual(values = c('black','white'),guide='none') +
-  theme_minimal(base_family = 'Roboto Condensed') +
-  guides(fill = guide_colourbar(title='Feature Value',title.vjust=1,barwidth = .5, barheight = 5,ticks = FALSE))+
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        axis.title.x = element_blank(),
-        axis.text.x = element_blank(),
-        legend.title = element_blank(),
-        axis.text.y = element_text(size = 7, color = 'black',margin = margin(r = 0)),
-        legend.text=element_text(size=6,color = 'black',margin = margin(r = 0)),
-        axis.title.y = element_blank())
+GOSE.1.event.plot <- indiv.pt.event.heatmap(indiv.event.timeSHAP.df,'5sMQ758')
+GOSE.2.3.event.plot <- indiv.pt.event.heatmap(indiv.event.timeSHAP.df,'9isg322')
+GOSE.4.event.plot <- indiv.pt.event.heatmap(indiv.event.timeSHAP.df,'7YeE448')
+GOSE.5.event.plot <- indiv.pt.event.heatmap(indiv.event.timeSHAP.df,'2DLL573')
+GOSE.6.event.plot <- indiv.pt.event.heatmap(indiv.event.timeSHAP.df,'6xrH956')
+GOSE.7.event.plot <- indiv.pt.event.heatmap(indiv.event.timeSHAP.df,'5HZz257')
+GOSE.8.event.plot <- indiv.pt.event.heatmap(indiv.event.timeSHAP.df,'2BWg753')
 
 # Create directory for current date and save individual feature-level bar plots
 dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
-ggsave(file.path('../plots',Sys.Date(),'indiv_event_heatmaps.svg'),indiv.event.timeshap.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
+ggsave(file.path('../plots',Sys.Date(),'indiv_event_heatmaps.svg'),GOSE.2.3.event.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_1_event_shap.svg'),GOSE.1.event.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_4_event_shap.svg'),GOSE.4.event.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_5_event_shap.svg'),GOSE.5.event.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_6_event_shap.svg'),GOSE.6.event.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_7_event_shap.svg'),GOSE.7.event.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
+ggsave(file.path('../plots',Sys.Date(),'GOSE_8_event_shap.svg'),GOSE.8.event.plot,device= svglite,units='in',dpi=600,width=2.17,height = 1)
 
 ### VI. Supplementary Figures 5 and 6
 ## Prepare dataframes
@@ -1057,6 +1014,15 @@ types.timeSHAP.df <- read.csv('../model_interpretations/v6-0/timeSHAP/filtered_p
          GROUPS = case_when((RankIdx >= 11) ~ 'Top',
                             (RankIdx <= 10) ~'Bottom')) %>%
   mutate(GROUPS = factor(GROUPS,levels=c('Top','Middle','Bottom')))
+
+race.timeSHAP.df <- types.timeSHAP.df %>%
+  filter(BaseToken=='Race') %>%
+  group_by(Token) %>%
+  summarise(lo=quantile(SHAP,.025),
+            q1=quantile(SHAP,.25),
+            median=median(SHAP),
+            q3=quantile(SHAP,.75),
+            hi=quantile(SHAP,.975))
 
 # Isolate and save unique `Tokens` by type to manually verify and fill variable order (if applicable)
 exp.GOSE.types.token.df <- types.timeSHAP.df %>%
@@ -1547,6 +1513,48 @@ ggsave(file.path('../plots',Sys.Date(),'ave_event_output.svg'),ave.event.output.
 
 ### XII. Supplementary Figures 2 and 3
 ## Load token characteristics
+# Load ICU admission-discharge timestamps
+icu.stay.durations <- read.csv('../timestamps/ICU_adm_disch_timestamps.csv',
+                               na.strings = c("NA","NaN","", " ")) %>%
+  select(GUPI,ICUDurationHours)
+
+# Extract ICU death status
+icu.death.status <- read.csv('../CENTER-TBI/DemoInjHospMedHx/data.csv',
+                             na.strings = c("NA","NaN","", " ")) %>%
+  filter(GUPI %in% icu.stay.durations$GUPI) %>%
+  select(GUPI,
+         ICUDisPatDeadAtICU,
+         ICUDischargeStatus,
+         TimeSinceICUAdmisDeath,
+         DeathERDeclaredBrainDeadFollowingNationalCriteria,
+         DeadSeverityofTBI,
+         DeadAge,
+         DeadCoMorbidities,
+         DeadRequestRelatives,
+         DeadDeterminationOfBrainDeath,
+         DeadOrganDonation,
+         DeadPatWill,
+         DeathCause,
+         DeathCauseOther,
+         DeathDate,
+         DeathTime,
+         DeathERDOA,
+         DeathERUnsuccResusForExtraCranInj,
+         DeathERWithdrawalLifeSuppForSeverityOfTBI,
+         DeathERDeclaredBrainDeadFollowingNationalCriteria,
+         DeathAutopsy,
+         DeadDeterminationOfBrainDeath,
+         BrainDeathDate,
+         BrainDeathTime)
+
+# Merge indicator of ICU death to stay duration dataframe
+icu.stay.durations <- icu.stay.durations %>%
+  left_join(icu.death.status %>% select(GUPI,ICUDischargeStatus)) %>%
+  mutate(DiedInICU = as.integer(ICUDischargeStatus==2),
+         ICUDurationDays = ICUDurationHours/24) %>%
+  mutate(DiedInICU = replace_na(DiedInICU, 0),
+         Discharge = 1)
+
 # Token characteristics
 token.type.counts <- read.csv('../tokens/fold1/token_type_counts.csv',
                               na.strings = c("NA","NaN","", " ")) %>%
@@ -2076,3 +2084,189 @@ dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
 ggsave(file.path('../plots',Sys.Date(),'GOSE_bar_plot.png'),gose.bar.plot,units='in',dpi=600,width=2.5,height = 2.8)
 ggsave(file.path('../plots',Sys.Date(),'GCS_bar_plot.png'),gcs.severity.bar.plot,units='in',dpi=600,width=2.5,height = 2.8)
 ggsave(file.path('../plots',Sys.Date(),'TIL_bar_plot.png'),til.bar.plot,units='in',dpi=600,width=2.5,height = 2.8)
+
+### XVIII. Kaplan-Meier ICU stay curve for patients who died vs. survived in ICU
+## Load and prepare survival times and death-in-ICU status
+# Load ICU admission-discharge timestamps
+icu.stay.durations <- read.csv('../timestamps/ICU_adm_disch_timestamps.csv',
+                               na.strings = c("NA","NaN","", " ")) %>%
+  select(GUPI,ICUDurationHours)
+
+# Extract ICU death status
+icu.death.status <- read.csv('../CENTER-TBI/DemoInjHospMedHx/data.csv',
+                             na.strings = c("NA","NaN","", " ")) %>%
+  filter(GUPI %in% icu.stay.durations$GUPI) %>%
+  select(GUPI,
+         ICUDisPatDeadAtICU,
+         ICUDischargeStatus,
+         TimeSinceICUAdmisDeath,
+         DeathERDeclaredBrainDeadFollowingNationalCriteria,
+         DeadSeverityofTBI,
+         DeadAge,
+         DeadCoMorbidities,
+         DeadRequestRelatives,
+         DeadDeterminationOfBrainDeath,
+         DeadOrganDonation,
+         DeadPatWill,
+         DeathCause,
+         DeathCauseOther,
+         DeathDate,
+         DeathTime,
+         DeathERDOA,
+         DeathERUnsuccResusForExtraCranInj,
+         DeathERWithdrawalLifeSuppForSeverityOfTBI,
+         DeathERDeclaredBrainDeadFollowingNationalCriteria,
+         DeathAutopsy,
+         DeadDeterminationOfBrainDeath,
+         BrainDeathDate,
+         BrainDeathTime)
+
+# Merge indicator of ICU death to stay duration dataframe
+icu.stay.durations <- icu.stay.durations %>%
+  left_join(icu.death.status %>% select(GUPI,ICUDischargeStatus)) %>%
+  mutate(DiedInICU = as.integer(ICUDischargeStatus==2),
+         ICUDurationDays = ICUDurationHours/24) %>%
+  mutate(DiedInICU = replace_na(DiedInICU, 0),
+         Discharge = 1)
+
+## Fit and plot Kaplan-Meier curve
+# Fit ggsurv object on data
+fit <- survfit(Surv(ICUDurationDays, Discharge) ~ DiedInICU, data = icu.stay.durations)
+
+# Create survival curve ggplot object
+icu.remaining.curve <- ggsurvplot(fit,
+                                  data = icu.stay.durations,
+                                  xlim = c(0,30),
+                                  size=2/.pt,
+                                  break.x.by = 1,
+                                  conf.int = TRUE,
+                                  pval = TRUE,
+                                  pval.size = 3,
+                                  xlab='Days since ICU admission',
+                                  ylab = 'Proportion remaining in ICU',
+                                  palette = c("#003f5c", "#bc5090"),
+                                  ggtheme = theme_minimal(base_family = 'Roboto Condensed')+
+                                    theme(panel.grid.minor.x = element_blank(),
+                                          axis.text.x = element_text(size = 10, color = "black",margin = margin(0,0,0,0)),
+                                          axis.text.y = element_text(size = 10, color = "black",margin = margin(0,0,0,0)),
+                                          axis.title.x = element_text(size = 12, color = "black",face = 'bold'),
+                                          axis.title.y = element_text(size = 12, color = "black",face = 'bold',margin = margin(0,0,0,0)),
+                                          axis.ticks.x = element_blank(),
+                                          axis.ticks.y = element_blank(),
+                                          legend.title = element_blank(),
+                                          legend.text=element_text(size=10),
+                                          legend.key.size = unit(2/.pt,"line")),
+                                  legend = 'bottom',
+                                  legend.labs=c('Survived ICU stay (n=1345)','Died in ICU (n=205)'))
+
+# Save survival curve ggplot object
+dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
+ggsave(file.path('../plots',Sys.Date(),'ICU_remaining_curve.png'),icu.remaining.curve,units='in',dpi=600,width=3.7,height = 2.22)
+
+### XIX. Supplementary Figure: WLST vs. non-WLST TimeSHAP
+## Prepare dataframe of filtered TimeSHAP values for plotting
+# Load TimeSHAP value dataframe
+WLST.timeSHAP.df <- read.csv('../model_interpretations/v6-0/timeSHAP/filtered_WLST_plotting_timeSHAP_values.csv',
+                             na.strings = c("NA","NaN","", " ")) %>%
+  filter(Threshold == 'GOSE>1') %>%
+  mutate(Baseline = as.logical(Baseline),
+         Numeric = as.logical(Numeric),
+         Ordered = as.logical(Ordered),
+         Missing = as.logical(Missing),
+         Binary = as.logical(Binary),
+         GROUPS = case_when((RankIdx >= 11) ~ 'Top',
+                            (RankIdx <= 10) ~'Bottom'),
+         WLST = factor(case_when(WLST==0 ~ 'Non-WLST',
+                                 WLST==1 ~ 'WLST'),
+                       levels=c('Non-WLST','WLST'))) %>%
+  mutate(GROUPS = factor(GROUPS,levels=c('Top','Middle','Bottom')))
+
+# Isolate and save unique `Tokens` by WLST to manually verify and fill variable order (if applicable)
+exp.GOSE.WLST.token.df <- WLST.timeSHAP.df %>%
+  select(VERSION,WLST,RankIdx,BaseToken,Token,Baseline,Numeric,Missing,Ordered,Binary,TokenRankIdx) %>%
+  unique() %>%
+  mutate(OrderIdx = TokenRankIdx-1)
+# Calculate the number of unique known values per predictor
+max.WLST.order.indices <- exp.GOSE.WLST.token.df %>%
+  group_by(BaseToken) %>%
+  summarise(MaxOrderIdx = max(OrderIdx))
+
+# Merge manually created labels to filtered TimeSHAP plotting dataframe and complete formatting
+WLST.timeSHAP.df <- WLST.timeSHAP.df %>%
+  left_join(exp.GOSE.WLST.token.df) %>%
+  left_join(max.WLST.order.indices) %>%
+  arrange(TUNE_IDX,WLST,VERSION,Threshold,RankIdx,OrderIdx) %>%
+  mutate(ColorScale = OrderIdx/MaxOrderIdx) %>%
+  mutate(ColorScale = case_when(is.na(ColorScale)~1,
+                                ((!is.na(ColorScale))&(ColorScale>=0))~ColorScale)) %>%
+  mutate(Baseline = recode(as.character(Baseline),'TRUE'='Static','FALSE'='Dynamic')) %>%
+  mutate(Baseline = fct_relevel(Baseline, 'Static', 'Dynamic')) %>%
+  mutate(BaseToken = fct_reorder(BaseToken, RankIdx))
+
+# Create feature importance beeswarm plot for static predictors
+static.WLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Static',
+         VERSION=='v6-0',
+         WLST=='WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+static.nonWLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Static',
+         VERSION=='v6-0',
+         WLST=='Non-WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+dynamic.WLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Dynamic',
+         VERSION=='v6-0',
+         WLST=='WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+dynamic.nonWLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Dynamic',
+         VERSION=='v6-0',
+         WLST=='Non-WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+v7.static.WLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Static',
+         VERSION=='v7-0',
+         WLST=='WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+v7.static.nonWLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Static',
+         VERSION=='v7-0',
+         WLST=='Non-WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+v7.dynamic.WLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Dynamic',
+         VERSION=='v7-0',
+         WLST=='WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+v7.dynamic.nonWLST.plot <- WLST.timeSHAP.df %>%
+  filter(Baseline=='Dynamic',
+         VERSION=='v7-0',
+         WLST=='Non-WLST', 
+         abs(SHAP) <= 0.5) %>%
+  types.timeSHAP.plots()
+
+# Create directory for current date and save feature-level TimeSHAP plots
+dir.create(file.path('../plots',Sys.Date()),showWarnings = F,recursive = T)
+ggsave(file.path('../plots',Sys.Date(),'WLST_v6_static_timeshap.png'),static.WLST.plot,units='in',dpi=600,height=3.38,width=3.75)
+ggsave(file.path('../plots',Sys.Date(),'NonWLST_v6_static_timeshap.png'),static.nonWLST.plot,units='in',dpi=600,height=3.38,width=3.75)
+ggsave(file.path('../plots',Sys.Date(),'WLST_v6_dynamic_timeshap.png'),dynamic.WLST.plot,units='in',dpi=600,height=3.38,width=3.75)
+ggsave(file.path('../plots',Sys.Date(),'NonWLST_v6_dynamic_timeshap.png'),dynamic.nonWLST.plot,units='in',dpi=600,height=3.38,width=3.75)
+ggsave(file.path('../plots',Sys.Date(),'WLST_v7_static_timeshap.png'),v7.static.WLST.plot,units='in',dpi=600,height=3.38,width=3.75)
+ggsave(file.path('../plots',Sys.Date(),'NonWLST_v7_static_timeshap.png'),v7.static.nonWLST.plot,units='in',dpi=600,height=3.38,width=3.75)
+ggsave(file.path('../plots',Sys.Date(),'WLST_v7_dynamic_timeshap.png'),v7.dynamic.WLST.plot,units='in',dpi=600,height=3.38,width=3.75)
+ggsave(file.path('../plots',Sys.Date(),'NonWLST_v7_dynamic_timeshap.png'),v7.dynamic.nonWLST.plot,units='in',dpi=600,height=3.38,width=3.75)

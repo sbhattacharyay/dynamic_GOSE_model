@@ -275,40 +275,86 @@ age_employment_values.to_csv(os.path.join(shap_dir,'age_employment_status_plotti
 ### V. Prepare TimeSHAP values for plotting
 ## Prepare TimeSHAP value dataframe
 # Load compiled TimeSHAP values dataframe from TimeSHAP directory
-compiled_timeSHAP_values = pd.read_pickle(os.path.join(shap_dir,'timeSHAP_values.pkl')).rename(columns={'Feature':'Token'}).drop(columns=['Random seed','NSamples'])
+compiled_timeSHAP_values = pd.read_pickle(os.path.join(shap_dir,'timeSHAP_values.pkl')).rename(columns={'Feature':'Token'}).drop(columns=['Random seed','NSamples','BaselineFeatures','PARTITION_IDX'])
+v7_compiled_timeSHAP_values = pd.read_pickle('/home/sb2406/rds/hpc-work/model_interpretations/v7-0/timeSHAP/compiled_timeSHAP_values.pkl').drop(columns=['Diff','Above','Cutoff','PARTITION_IDX','PASS'])
+
+# Add version number to compiled TimeSHAP value dataframe
+compiled_timeSHAP_values['VERSION'] = 'v6-0'
+v7_compiled_timeSHAP_values['REPEAT'] = 1
+v7_compiled_timeSHAP_values['VERSION'] = 'v7-0'
+
+# Create a special dataframe for cross-version TimeSHAP values
+version_compiled_timeSHAP_values = pd.concat([compiled_timeSHAP_values,v7_compiled_timeSHAP_values],ignore_index=True)
 
 # Average SHAP values per GUPI
 summarised_timeSHAP_values = compiled_timeSHAP_values.groupby(['TUNE_IDX','GUPI','Threshold','Token'],as_index=False)['SHAP'].mean()
+version_summarised_timeSHAP_values = version_compiled_timeSHAP_values.groupby(['TUNE_IDX','GUPI','Threshold','Token','VERSION'],as_index=False)['SHAP'].mean()
 
 # Determine whether tokens are baseline
 summarised_timeSHAP_values['Baseline'] = summarised_timeSHAP_values['Token'].str.startswith('Baseline')
+# version_summarised_timeSHAP_values['Baseline'] = version_summarised_timeSHAP_values['Token'].str.startswith('Baseline')
 
 # Determine whether tokens are numeric
 summarised_timeSHAP_values['Numeric'] = summarised_timeSHAP_values['Token'].str.contains('_BIN')
+# version_summarised_timeSHAP_values['Numeric'] = version_summarised_timeSHAP_values['Token'].str.contains('_BIN')
 
 # Determine wheter tokens represent missing values
 summarised_timeSHAP_values['Missing'] = ((summarised_timeSHAP_values.Numeric)&(summarised_timeSHAP_values['Token'].str.endswith('_BIN_missing')))|((~summarised_timeSHAP_values.Numeric)&(summarised_timeSHAP_values['Token'].str.endswith('_NA')))
+# version_summarised_timeSHAP_values['Missing'] = ((version_summarised_timeSHAP_values.Numeric)&(version_summarised_timeSHAP_values['Token'].str.endswith('_BIN_missing')))|((~version_summarised_timeSHAP_values.Numeric)&(version_summarised_timeSHAP_values['Token'].str.endswith('_NA')))
 
 # Create empty column for predictor base token
 summarised_timeSHAP_values['BaseToken'] = ''
+# version_summarised_timeSHAP_values['BaseToken'] = ''
 
 # For numeric tokens, extract the portion of the string before '_BIN' as the BaseToken
 summarised_timeSHAP_values.BaseToken[summarised_timeSHAP_values.Numeric] = summarised_timeSHAP_values.Token[summarised_timeSHAP_values.Numeric].str.replace('\\_BIN.*','',1,regex=True)
+# version_summarised_timeSHAP_values.BaseToken[version_summarised_timeSHAP_values.Numeric] = version_summarised_timeSHAP_values.Token[version_summarised_timeSHAP_values.Numeric].str.replace('\\_BIN.*','',1,regex=True)
 
 # For non-numeric tokens, extract everything before the final underscore, if one exists, as the BaseToken
 summarised_timeSHAP_values.BaseToken[~summarised_timeSHAP_values.Numeric] = summarised_timeSHAP_values.Token[~summarised_timeSHAP_values.Numeric].str.replace('_[^_]*$','',1,regex=True)
+# version_summarised_timeSHAP_values.BaseToken[~version_summarised_timeSHAP_values.Numeric] = version_summarised_timeSHAP_values.Token[~version_summarised_timeSHAP_values.Numeric].str.replace('_[^_]*$','',1,regex=True)
 
 # For baseline tokens, remove the "Baseline" prefix in the BaseToken
 summarised_timeSHAP_values.BaseToken[summarised_timeSHAP_values.Baseline] = summarised_timeSHAP_values.BaseToken[summarised_timeSHAP_values.Baseline].str.replace('Baseline','',1,regex=False)
+# version_summarised_timeSHAP_values.BaseToken[version_summarised_timeSHAP_values.Baseline] = version_summarised_timeSHAP_values.BaseToken[version_summarised_timeSHAP_values.Baseline].str.replace('Baseline','',1,regex=False)
 
 # Remove underscores from `BaseToken` values if they stil exist
 summarised_timeSHAP_values.BaseToken = summarised_timeSHAP_values.BaseToken.str.replace('_','')
+# version_summarised_timeSHAP_values.BaseToken = version_summarised_timeSHAP_values.BaseToken.str.replace('_','')
 
 # Load manually corrected full token categorization key
 full_token_key = pd.read_excel('/home/sb2406/rds/hpc-work/tokens/legacy_full_token_keys.xlsx')
+full_token_key['VERSION'] = 'v6-0'
+v7_full_token_key = pd.read_excel('/home/sb2406/rds/hpc-work/tokens/full_token_keys.xlsx').drop(columns=['Value','OrderIdx','Discharge'])
+v7_full_token_key['VERSION'] = 'v7-0'
+version_token_key = pd.concat([full_token_key,v7_full_token_key],ignore_index=True)
 
 # Merge full token key information to dataframe version of vocabulary
 summarised_timeSHAP_values = summarised_timeSHAP_values.merge(full_token_key,how='left')
+version_summarised_timeSHAP_values = version_summarised_timeSHAP_values.merge(version_token_key,how='left')
+
+# Find CENTER-TBI patients who experienced WLST
+CENTER_TBI_WLST_patients = pd.read_csv('../CENTER-TBI/WLST_patients.csv',na_values = ["NA","NaN"," ", ""])
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients[CENTER_TBI_WLST_patients.GUPI.isin(version_summarised_timeSHAP_values.GUPI)].reset_index(drop=True)
+CENTER_TBI_death_patients = pd.read_csv('../CENTER-TBI/death_patients.csv',na_values = ["NA","NaN"," ", ""])
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients.merge(CENTER_TBI_death_patients[['GUPI','ICUDischargeStatus']],how='left')
+CENTER_TBI_ICU_datetime = pd.read_csv('/home/sb2406/rds/hpc-work/timestamps/ICU_adm_disch_timestamps.csv')
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients.merge(CENTER_TBI_ICU_datetime[['GUPI','ICUDischTimeStamp']].drop_duplicates(ignore_index=True),how='left')
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients.melt(id_vars=['GUPI','PatientType','DeathERWithdrawalLifeSuppForSeverityOfTBI','WithdrawalTreatmentDecision','DeadSeverityofTBI','DeadAge','DeadCoMorbidities','DeadRequestRelatives','DeadDeterminationOfBrainDeath','ICUDisWithdrawlTreatmentDecision','ICUDischargeStatus','ICUDischTimeStamp'])
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients.sort_values(['GUPI','value'],ignore_index=True)
+no_non_missing_timestamp_patients = CENTER_TBI_WLST_patients.groupby('GUPI',as_index=False)['value'].agg('count')
+no_non_missing_timestamp_patients = no_non_missing_timestamp_patients[no_non_missing_timestamp_patients['value']==0].reset_index(drop=True)
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients[(~CENTER_TBI_WLST_patients['value'].isna())|(CENTER_TBI_WLST_patients.GUPI.isin(no_non_missing_timestamp_patients.GUPI))].reset_index(drop=True)
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients.groupby('GUPI',as_index=False).first()
+CENTER_TBI_WLST_patients['value'] = CENTER_TBI_WLST_patients['value'].fillna('1970-01-01')
+CENTER_TBI_WLST_patients['value'] = pd.to_datetime(CENTER_TBI_WLST_patients['value'].str[:10],format = '%Y-%m-%d').dt.date
+CENTER_TBI_WLST_patients['ICUDischTimeStamp'] = pd.to_datetime(CENTER_TBI_WLST_patients['ICUDischTimeStamp'],format = '%Y-%m-%d %H:%M:%S' )
+CENTER_TBI_WLST_patients = CENTER_TBI_WLST_patients[(CENTER_TBI_WLST_patients.ICUDischargeStatus==2)|(CENTER_TBI_WLST_patients['value']<=CENTER_TBI_WLST_patients.ICUDischTimeStamp)].reset_index(drop=True)
+
+# Add dummy column marking WLST
+CENTER_TBI_WLST_patients['WLST'] = 1
+version_summarised_timeSHAP_values = version_summarised_timeSHAP_values.merge(CENTER_TBI_WLST_patients[['GUPI','WLST']],how='left')
+version_summarised_timeSHAP_values.WLST = version_summarised_timeSHAP_values.WLST.fillna(0)
 
 # # For initial purpose, filter out any missing values
 # summarised_timeSHAP_values = summarised_timeSHAP_values[summarised_timeSHAP_values.Missing==False].reset_index(drop=True)
@@ -316,18 +362,22 @@ summarised_timeSHAP_values = summarised_timeSHAP_values.merge(full_token_key,how
 ## Determine "most important" features for visualisation
 # Calculate summary statistics of SHAP per Token
 token_level_timeSHAP_summaries = summarised_timeSHAP_values.groupby(['TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken','Token'],as_index=False)['SHAP'].aggregate({'median':np.median,'mean':np.mean,'std':np.std,'instances':'count'}).sort_values('median').reset_index(drop=True)
+version_token_level_timeSHAP_summaries = version_summarised_timeSHAP_values.groupby(['VERSION','WLST','TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken','Token'],as_index=False)['SHAP'].aggregate({'median':np.median,'mean':np.mean,'std':np.std,'instances':'count'}).sort_values('median').reset_index(drop=True)
 
 # # Filter out `Tokens` with less than 2 unique patients
 # token_level_timeSHAP_summaries = token_level_timeSHAP_summaries[token_level_timeSHAP_summaries.instances >= 2].reset_index(drop=True)
 
 # Calculate overall summary statistics of SHAP per BaseToken
 basetoken_timeSHAP_summaries = token_level_timeSHAP_summaries[token_level_timeSHAP_summaries.instances >= 2].groupby(['TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken'],as_index=False)['median'].aggregate({'std':np.std,'min':np.min,'q1':lambda x: np.quantile(x,.25),'median':np.median,'q3':lambda x: np.quantile(x,.75),'max':np.max,'mean':np.mean, 'variable_values':'count'}).sort_values('std',ascending=False).reset_index(drop=True)
+version_basetoken_timeSHAP_summaries = version_token_level_timeSHAP_summaries[version_token_level_timeSHAP_summaries.instances >= 2].groupby(['VERSION','WLST','TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken'],as_index=False)['median'].aggregate({'std':np.std,'min':np.min,'q1':lambda x: np.quantile(x,.25),'median':np.median,'q3':lambda x: np.quantile(x,.75),'max':np.max,'mean':np.mean, 'variable_values':'count'}).sort_values('std',ascending=False).reset_index(drop=True)
 
 # Calculate total instances per `BaseToken` and merge information to dataframe
 basetoken_timeSHAP_summaries = basetoken_timeSHAP_summaries.merge(summarised_timeSHAP_values.groupby(['TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken'],as_index=False)['GUPI'].aggregate({'total_instances':lambda x: len(np.unique(x))}),how='left',on=['TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken'])
+version_basetoken_timeSHAP_summaries = version_basetoken_timeSHAP_summaries.merge(version_summarised_timeSHAP_values.groupby(['VERSION','WLST','TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken'],as_index=False)['GUPI'].aggregate({'total_instances':lambda x: len(np.unique(x))}),how='left',on=['VERSION','WLST','TUNE_IDX','Baseline','Missing','Threshold','Type','BaseToken'])
 
 # Remove `BaseTokens` with limited patient representation
 basetoken_timeSHAP_summaries = basetoken_timeSHAP_summaries[(basetoken_timeSHAP_summaries.BaseToken.isin(['HighestDailyDose','PmMedicationName']))|(basetoken_timeSHAP_summaries.variable_values<=100)].reset_index(drop=True)
+version_basetoken_timeSHAP_summaries = version_basetoken_timeSHAP_summaries[(version_basetoken_timeSHAP_summaries.BaseToken.isin(['HighestDailyDose','PmMedicationName']))|(version_basetoken_timeSHAP_summaries.variable_values<=100)].reset_index(drop=True)
 
 ## Extract most impactful missing value tokens
 # Filter `BaseToken` summaries to focus on missing value tokens
@@ -407,6 +457,37 @@ filtered_min_max_timeSHAP_values['TokenRankIdx'] = filtered_min_max_timeSHAP_val
 
 # Save dataframe as CSV for plotting
 filtered_min_max_timeSHAP_values.to_csv(os.path.join(shap_dir,'filtered_plotting_timeSHAP_values.csv'),index=False)
+
+## Extract most impactful tokens overall per version-WLST cross
+# Filter `BaseToken` summaries to remove missing value tokens
+nonmissing_version_basetoken_timeSHAP_summaries = version_basetoken_timeSHAP_summaries[version_basetoken_timeSHAP_summaries.Missing==False].sort_values('min').reset_index(drop=True)
+
+# For each TUNE_IDX-Threshold-Version-WLST combination, select the top 20 `BaseTokens` based on variance across values
+version_top_variance_timeSHAP_basetokens = nonmissing_version_basetoken_timeSHAP_summaries.loc[nonmissing_version_basetoken_timeSHAP_summaries.groupby(['TUNE_IDX','Baseline','Threshold','VERSION','WLST'])['std'].head(20).index].reset_index(drop=True)
+version_top_variance_timeSHAP_basetokens['RankIdx'] = version_top_variance_timeSHAP_basetokens.groupby(['TUNE_IDX','Baseline','Threshold','VERSION','WLST'])['std'].rank('dense', ascending=False)
+version_filtered_top_variance_timeSHAP_values = version_summarised_timeSHAP_values.merge(version_top_variance_timeSHAP_basetokens[['VERSION','WLST','TUNE_IDX','Baseline','Threshold', 'BaseToken','RankIdx']],how='inner',on=['VERSION','WLST','TUNE_IDX','Baseline','Threshold','BaseToken']).reset_index(drop=True)
+
+# For each TUNE_IDX-Threshold-Version-WLST combination, select the bottom 10 `BaseTokens` based on min median token SHAP values
+nonmissing_version_basetoken_timeSHAP_summaries = nonmissing_version_basetoken_timeSHAP_summaries.sort_values('min').reset_index(drop=True)
+version_top_min_timeSHAP_basetokens = nonmissing_version_basetoken_timeSHAP_summaries.loc[nonmissing_version_basetoken_timeSHAP_summaries.groupby(['VERSION','WLST','TUNE_IDX','Baseline','Threshold'])['min'].head(10).index].reset_index(drop=True)
+version_top_min_timeSHAP_basetokens['RankIdx'] = version_top_min_timeSHAP_basetokens.groupby(['VERSION','WLST','TUNE_IDX','Baseline','Threshold'])['min'].rank('dense', ascending=False) + 10
+
+# For each TUNE_IDX-Threshold combination, select the top 10 `BaseTokens` based on max median token SHAP values that are not in bottom 10
+version_filt_set = nonmissing_version_basetoken_timeSHAP_summaries.merge(version_top_min_timeSHAP_basetokens[['VERSION','WLST','TUNE_IDX','Baseline','Threshold','BaseToken']], on=['VERSION','WLST','TUNE_IDX','Baseline','Threshold','BaseToken'],how='left', indicator=True)
+version_filt_set = version_filt_set[version_filt_set['_merge'] == 'left_only'].sort_values('max',ascending=False).drop(columns='_merge').reset_index(drop=True)
+version_top_max_timeSHAP_basetokens = version_filt_set.loc[version_filt_set.groupby(['VERSION','WLST','TUNE_IDX','Baseline','Threshold'])['max'].head(10).index].reset_index(drop=True)
+version_top_max_timeSHAP_basetokens['RankIdx'] = version_top_max_timeSHAP_basetokens.groupby(['VERSION','WLST','TUNE_IDX','Baseline','Threshold'])['max'].rank('dense', ascending=False)
+
+## Isolate TimeSHAP values corresponding to "most important" and save
+# Combine and filter
+version_min_max_timeSHAP_basetokens = pd.concat([version_top_max_timeSHAP_basetokens,version_top_min_timeSHAP_basetokens],ignore_index=True)
+version_filtered_min_max_timeSHAP_values = version_summarised_timeSHAP_values.merge(version_min_max_timeSHAP_basetokens[['VERSION','WLST','TUNE_IDX','Baseline','Threshold','Missing','BaseToken','RankIdx']],how='inner',on=['VERSION','WLST','TUNE_IDX','Baseline','Threshold','Missing','BaseToken']).reset_index(drop=True)
+version_unique_values_per_base_token = version_filtered_min_max_timeSHAP_values.groupby(['VERSION','BaseToken'],as_index=False).Token.aggregate({'unique_values':lambda x: len(np.unique(x))})
+version_filtered_min_max_timeSHAP_values = version_filtered_min_max_timeSHAP_values.merge(version_unique_values_per_base_token,how='left')
+version_filtered_min_max_timeSHAP_values['TokenRankIdx'] = version_filtered_min_max_timeSHAP_values.groupby(['VERSION','BaseToken'])['Token'].rank('dense', ascending=True)
+
+# Save dataframe as CSV for plotting
+version_filtered_min_max_timeSHAP_values.to_csv(os.path.join(shap_dir,'filtered_WLST_plotting_timeSHAP_values.csv'),index=False)
 
 ### VI. Prepare event TimeSHAP values for plotting
 ## Prepare event TimeSHAP value dataframe
@@ -496,7 +577,7 @@ cand_preds = cand_preds[(cand_preds.PropCorrect!=1)&(~cand_preds.PropCorrect.isn
 
 # Add true labels and filter patients with intermediate outcomes
 cand_preds = cand_preds.merge(test_predictions_df[['GUPI','TrueLabel']].drop_duplicates(ignore_index=True),how='left')
-cand_preds = cand_preds[~cand_preds.TrueLabel.isin([0,6])].reset_index(drop=True)
+# cand_preds = cand_preds[~cand_preds.TrueLabel.isin([0,6])].reset_index(drop=True)
 
 ## Identify suitable significant transitions for exploration
 # Filter TimeSHAP transition dataframe to candidate predictions
@@ -509,28 +590,28 @@ cand_tsx_partitions = cand_tsx_partitions.merge(test_predictions_df[['GUPI','Tru
 cand_tsx_partitions = cand_tsx_partitions[cand_tsx_partitions.WindowIdx!=4].reset_index(drop=True)
 
 # Focus on significant transitions at the highest positive thresholds or lowest negative thresholds
-cand_tsx_partitions['HighestPositiveThresh'] = cand_tsx_partitions.TrueLabel.apply(lambda x: thresh_labels[int(x-1)])
-cand_tsx_partitions['LowestNegativeThresh'] = cand_tsx_partitions.TrueLabel.apply(lambda x: thresh_labels[int(x)])
+cand_tsx_partitions['HighestPositiveThresh'] = cand_tsx_partitions.TrueLabel.apply(lambda x: thresh_labels[max(int(x-1),0)])
+cand_tsx_partitions['LowestNegativeThresh'] = cand_tsx_partitions.TrueLabel.apply(lambda x: thresh_labels[min(int(x),5)])
 cand_tsx_partitions = cand_tsx_partitions[(cand_tsx_partitions.Threshold==cand_tsx_partitions.HighestPositiveThresh)|(cand_tsx_partitions.Threshold==cand_tsx_partitions.LowestNegativeThresh)].reset_index(drop=True)
 
 # Determine transitions that were significant across partitions
 cand_across_prx = cand_tsx_partitions.groupby(['GUPI','WindowIdx','Threshold','TrueLabel','Above'],as_index=False).Diff.aggregate({'count':'count','mean':'mean'}).sort_values('count',ascending=False)
 
-# Manually identified GUPI
-man_GUPI = '9isg322'
+# From manual inspection of candidate transitions, create a dataframe of selections for visualisation
+man_ispect_selections = pd.DataFrame({'GUPI':['2BWg753','5HZz257','6xrH956','2DLL573','7YeE448','9isg322','5sMQ758'],'REPEAT':[12,1,12,4,15,10,3],'WindowIdx':[43,25,46,22,60,41,33],'TrueLabel':[6,5,4,3,2,1,0]})
 
 # Filtered candidate TimeSHAP partitions
-man_tsx_partitions = cand_tsx_partitions[cand_tsx_partitions.GUPI==man_GUPI].reset_index(drop=True)
+man_tsx_partitions = cand_tsx_partitions[cand_tsx_partitions.GUPI.isin(man_ispect_selections.GUPI)].reset_index(drop=True)
 
 ## Filter and prepare testing set predictions and TimeSHAP for selected GUPI
 # Filter and save testing set predictions
-man_filt_preds = test_predictions_df[(test_predictions_df.GUPI==man_GUPI)&(test_predictions_df.REPEAT.isin(man_tsx_partitions.REPEAT.unique()))].reset_index(drop=True)
+man_filt_preds = test_predictions_df.merge(man_tsx_partitions[['GUPI','REPEAT']].drop_duplicates(),how='inner').reset_index(drop=True)
 man_filt_preds.to_csv(os.path.join(model_dir,'plotting_test_predictions.csv'),index=False)
 
 # Retrieve feature-level TimeSHAP values corresponding to current transition of focus
 compiled_timeSHAP_values = pd.read_pickle(os.path.join(shap_dir,'timeSHAP_values.pkl')).rename(columns={'Feature':'Token'}).drop(columns=['Random seed','NSamples'])
-man_timeSHAP_values = compiled_timeSHAP_values[(compiled_timeSHAP_values.GUPI==man_GUPI)&(compiled_timeSHAP_values.WindowIdx==41)&(compiled_timeSHAP_values.REPEAT==10)&(compiled_timeSHAP_values.Threshold=='ExpectedValue')].reset_index(drop=True)
-
+man_timeSHAP_values = compiled_timeSHAP_values[compiled_timeSHAP_values.Threshold=='ExpectedValue'].merge(man_ispect_selections,how='inner').reset_index(drop=True)
+    
 # Calculate absolute SHAP values
 man_timeSHAP_values['absSHAP'] = man_timeSHAP_values['SHAP'].abs()
 
@@ -544,19 +625,22 @@ man_timeSHAP_values.BaseToken[~man_timeSHAP_values.Numeric] = man_timeSHAP_value
 man_timeSHAP_values.BaseToken[man_timeSHAP_values.Baseline] = man_timeSHAP_values.BaseToken[man_timeSHAP_values.Baseline].str.replace('Baseline','',1,regex=False)
 man_timeSHAP_values.BaseToken = man_timeSHAP_values.BaseToken.str.replace('_','')
 
-# Calculate sum of missing token SHAPs and then remove missing token rows
-baseline_missing_SHAP_sum = man_timeSHAP_values[man_timeSHAP_values.Missing&man_timeSHAP_values.Baseline].SHAP.sum()
-dynamic_missing_SHAP_sum = man_timeSHAP_values[man_timeSHAP_values.Missing&~man_timeSHAP_values.Baseline].SHAP.sum()
+# Calculate the sum of missing token SHAPs by instance and then remove missing token rows
+overall_SHAP_sums = man_timeSHAP_values.groupby(['GUPI','REPEAT','WindowIdx','TrueLabel','Missing','Baseline'],as_index=False).SHAP.sum()
 man_timeSHAP_values = man_timeSHAP_values[~man_timeSHAP_values.Missing].reset_index(drop=True)
 
 # Add a ranking value based on Static-Dynamic group
-man_timeSHAP_values['RankIdx'] = man_timeSHAP_values.groupby('Baseline')['absSHAP'].rank(method="dense", ascending=False)
+man_timeSHAP_values['RankIdx'] = man_timeSHAP_values.groupby(['GUPI','REPEAT','WindowIdx','TrueLabel','Baseline'],as_index=False)['absSHAP'].rank(method="dense", ascending=False)
 
 # Summarise the non-top token SHAPs and remove
-baseline_nonmissing_SHAP_sum = man_timeSHAP_values[(man_timeSHAP_values.RankIdx > 10)&(man_timeSHAP_values.Baseline)].SHAP.sum()
-dynamic_nonmissing_SHAP_sum = man_timeSHAP_values[(man_timeSHAP_values.RankIdx > 10)&(~man_timeSHAP_values.Baseline)].SHAP.sum()
+nonmissing_others_SHAP_sum = man_timeSHAP_values[man_timeSHAP_values.RankIdx > 10].groupby(['GUPI','REPEAT','FOLD','TUNE_IDX','WindowIdx','Threshold','BaselineFeatures','PARTITION_IDX','TrueLabel','Baseline','Missing'],as_index=False)['SHAP'].sum()
+nonmissing_others_SHAP_sum['Token'] = 'Others'
+nonmissing_others_SHAP_sum['RankIdx'] = 11
 man_timeSHAP_values = man_timeSHAP_values[man_timeSHAP_values.RankIdx<=10].reset_index(drop=True)
-man_timeSHAP_values = pd.concat([man_timeSHAP_values,pd.DataFrame({'Token':['Others','Others'],'Baseline':[True,False],'SHAP':[baseline_nonmissing_SHAP_sum,dynamic_nonmissing_SHAP_sum],'RankIdx':[11,11]})])
+man_timeSHAP_values = pd.concat([man_timeSHAP_values,nonmissing_others_SHAP_sum],ignore_index=True)
+
+# Remove rows that are exactly zero
+man_timeSHAP_values = man_timeSHAP_values[man_timeSHAP_values.SHAP!=0].reset_index(drop=True)
 
 # Save top ranking SHAP values
 man_timeSHAP_values.to_csv(os.path.join(shap_dir,'individual_plotting_timeSHAP_values.csv'),index=False)
@@ -565,7 +649,7 @@ man_timeSHAP_values.to_csv(os.path.join(shap_dir,'individual_plotting_timeSHAP_v
 compiled_event_timeSHAP_values = pd.read_pickle(os.path.join(shap_dir,'event_timeSHAP_values.pkl')).rename(columns={'Feature':'TimePreTransition'}).drop(columns=['Random seed','NSamples'])
 compiled_event_timeSHAP_values['TimePreTransition'] = compiled_event_timeSHAP_values.TimePreTransition.str.replace('Event ','')
 compiled_event_timeSHAP_values['absSHAP'] = compiled_event_timeSHAP_values['SHAP'].abs()
-man_event_timeSHAP_values = compiled_event_timeSHAP_values[(compiled_event_timeSHAP_values.GUPI==man_GUPI)&(compiled_event_timeSHAP_values.WindowIdx==41)&(compiled_event_timeSHAP_values.REPEAT==10)&(compiled_event_timeSHAP_values.Threshold=='ExpectedValue')].reset_index(drop=True)
+man_event_timeSHAP_values = compiled_event_timeSHAP_values[compiled_event_timeSHAP_values.Threshold=='ExpectedValue'].merge(man_ispect_selections,how='inner').reset_index(drop=True)
 
 # Save event SHAP values
 man_event_timeSHAP_values.to_csv(os.path.join(shap_dir,'individual_plotting_event_timeSHAP_values.csv'),index=False)

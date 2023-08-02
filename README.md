@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/453184440.svg)](https://zenodo.org/badge/latestdoi/453184440)
 # Ordinal, full-context prognosis-based trajectories of traumatic brain injury patients in European ICUs
-Contribution of clinical course to outcome after traumatic brain injury: mining patient trajectories from European intensive care unit data
+Mining the contribution of intensive care clinical course to outcome after traumatic brain injury
 
 ## Contents
 
@@ -12,23 +12,14 @@ Contribution of clinical course to outcome after traumatic brain injury: mining 
 
 ## Overview
 
-This repository contains the code underlying the article entitled **Contribution of clinical trajectory to outcome after traumatic brain injury: data-driven disease course in European intensive care units** from the Collaborative European NeuroTrauma Effectiveness Research in TBI ([CENTER-TBI](https://www.center-tbi.eu/)) consortium. In this file, we present the abstract, to outline the motivation for the work and the findings, and then a brief description of the code with which we generate these finding and achieve this objective.\
+This repository contains the code underlying the article entitled **Mining the contribution of intensive care clinical course to outcome after traumatic brain injury** from the Collaborative European NeuroTrauma Effectiveness Research in TBI ([CENTER-TBI](https://www.center-tbi.eu/)) consortium. In this file, we present the abstract, to outline the motivation for the work and the findings, and then a brief description of the code with which we generate these finding and achieve this objective.\
 \
 The code on this repository is commented throughout to provide a description of each step alongside the code which achieves it.
 
 ## Abstract
-### Background
-Existing methods to characterise the evolving condition of traumatic brain injury (TBI) patients in the intensive care unit (ICU) do not capture the context necessary for individualising treatment. We aimed to develop a modelling strategy which integrates all heterogenous data stored in medical records to produce an interpretable disease course for each TBI patient’s ICU stay.
-### Methods
-From a prospective cohort (n=1,550, 65 centres, 19 countries) of European TBI patients, we extracted all 1,166 variables collected before or during ICU stay as well as six-month functional outcome on the Glasgow Outcome Scale – Extended (GOSE). We trained recurrent neural network models to map a token-embedded time series representation of all variables to an ordinal GOSE prognosis every two hours. With repeated cross-validation, we evaluated calibration and the explanation of ordinal variance in GOSE with Somers’ Dxy. Furthermore, we implemented the TimeSHAP algorithm to calculate the contribution of variables and prior timepoints towards transitions in patient trajectories.
-### Findings
-Our modelling strategy achieved calibration at eight hours post-admission, and the full range of variables explained up to 52·2% (95% CI: 50·2%–54·3%) of the variance in ordinal functional outcome. Most of this explanation was derived from pre-ICU and admission information. Information collected in the ICU increased explanation (by up to 5·2% [95% CI: 4·2%–6·2%]), though not enough to counter poorer overall performance in longer-stay (>5·75 days) patients. Static variables with the highest contributions were physician-based prognoses and certain demographic and CT features. Among dynamic variables, markers of intracranial hypertension and neurological function contributed the most.
-### Interpretation
-We show the feasibility of a data-driven approach for individualised TBI characterisation with minimal pre-processing and integration of missing data. Our results also highlight investigative avenues to help explain the remaining half of variance in functional outcome.
-### Funding
-NIHR Brain Injury MedTech Co-operative, EU 7<sup>th</sup> Framework, Hannelore Kohl, OneMind, Integra Neurosciences, Gates Cambridge.
+Existing methods to characterise the evolving condition of traumatic brain injury (TBI) patients in the intensive care unit (ICU) do not capture the context necessary for individualising treatment. Here, we integrate all heterogenous data stored in medical records (1,166 pre-ICU and ICU variables) to model the individualised contribution of clinical course to six-month functional outcome on the Glasgow Outcome Scale - Extended (GOSE). On a prospective cohort (*n*=1,550, 65 centres) of TBI patients, we train recurrent neural network models to map a token-embedded time series representation of all variables (including missing values) to an ordinal GOSE prognosis every two hours. The full range of variables explains up to 52% (95% CI: 50%-54%) of the ordinal variance in functional outcome. Up to 91% (95% CI: 90%-91%) of this explanation is derived from pre-ICU and admission information (i.e., static variables). Information collected in the ICU (i.e., dynamic variables) increases explanation  (by up to 5% [95% CI: 4%-6%]), though not enough to counter poorer overall performance in longer-stay (>5.75 days) patients. Highest-contributing variables include physician-based prognoses, CT features, and markers of neurological function. Whilst static information currently accounts for the majority of functional outcome explanation after TBI, data-driven analysis highlights investigative avenues to improve dynamic characterisation of longer-stay patients. Moreover, our modelling strategy proves useful for converting large patient records into interpretable time series with missing data integration and minimal processing.
 
-## Code 
+## Code
 All of the code used in this work can be found in the `./scripts` directory as Python (`.py`), R (`.R`), or bash (`.sh`) scripts. Moreover, custom classes have been saved in the `./scripts/classes` sub-directory, custom functions have been saved in the `./scripts/functions` sub-directory, and custom PyTorch models have been saved in the `./scripts/models` sub-directory.
 
 ### 1. [Extract study sample from CENTER-TBI dataset and define ICU stays](scripts/01_prepare_study_sample_timestamps.py)

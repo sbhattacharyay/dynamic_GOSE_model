@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/453184440.svg)](https://zenodo.org/badge/latestdoi/453184440)
 # Ordinal, full-context prognosis-based trajectories of traumatic brain injury patients in European ICUs
-Mining the contribution of intensive care clinical course to outcome after traumatic brain injury
+[Mining the contribution of intensive care clinical course to outcome after traumatic brain injury](https://doi.org/10.1038/s41746-023-00895-8)
 
 ## Contents
 
@@ -73,4 +73,19 @@ In this `.R` file, we produce the figures for the manuscript and the supplementa
 
 ## Citation
 ```
+@Article{10.1038/s41746-023-00895-8,
+    author={Bhattacharyay, Shubhayu and Caruso, Pier Francesco and {\AA}kerlund, Cecilia and Wilson, Lindsay and Stevens, Robert D. and Menon, David K. and Steyerberg, Ewout W. and Nelson, David W. and Ercole, Ari and the CENTER-TBI investigators participants},
+    title={Mining the contribution of intensive care clinical course to outcome after traumatic brain injury},
+    journal={npj Digital Medicine},
+    year={2023},
+    month={Aug},
+    day={21},
+    volume={6},
+    number={1},
+    pages={154},
+    abstract={Existing methods to characterise the evolving condition of traumatic brain injury (TBI) patients in the intensive care unit (ICU) do not capture the context necessary for individualising treatment. Here, we integrate all heterogenous data stored in medical records (1166 pre-ICU and ICU variables) to model the individualised contribution of clinical course to 6-month functional outcome on the Glasgow Outcome Scale -Extended (GOSE). On a prospective cohort (n{\thinspace}={\thinspace}1550, 65 centres) of TBI patients, we train recurrent neural network models to map a token-embedded time series representation of all variables (including missing values) to an ordinal GOSE prognosis every 2{\thinspace}h. The full range of variables explains up to 52{\%} (95{\%} CI: 50--54{\%}) of the ordinal variance in functional outcome. Up to 91{\%} (95{\%} CI: 90--91{\%}) of this explanation is derived from pre-ICU and admission information (i.e., static variables). Information collected in the ICU (i.e., dynamic variables) increases explanation (by up to 5{\%} [95{\%} CI: 4--6{\%}]), though not enough to counter poorer overall performance in longer-stay (>5.75 days) patients. Highest-contributing variables include physician-based prognoses, CT features, and markers of neurological function. Whilst static information currently accounts for the majority of functional outcome explanation after TBI, data-driven analysis highlights investigative avenues to improve the dynamic characterisation of longer-stay patients. Moreover, our modelling strategy proves useful for converting large patient records into interpretable time series with missing data integration and minimal processing.},
+    issn={2398-6352},
+    doi={10.1038/s41746-023-00895-8},
+    url={https://doi.org/10.1038/s41746-023-00895-8}
+}
 ```
